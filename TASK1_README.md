@@ -27,3 +27,5 @@ You must measure these metrics **while varying the amount of allocated memory** 
 3.  What happens to the performance when the diversity (e.g., increasing the number of contexts, making the order of the requests more random) of the requests increases?
 
 **Next Steps:** After completing these experiments and answering the questions, determine the optimal amount of allocated memory needed to perform inference with low latency and high throughput. Configure your system accordingly before proceeding to Task 2.
+
+BABA
