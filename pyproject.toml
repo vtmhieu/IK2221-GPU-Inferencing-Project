@@ -1,0 +1,34 @@
+[project]
+name = "ik2221-project2"
+version = "0.1.0"
+description = "Shared environment for the IK2221 LMCache/vLLM project"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "lmcache",
+    "lmcache-server",
+    "lmcache-vllm",
+    "fastapi~=0.115.8",
+    "numpy==1.26.4",
+    "nvtx",
+    "openai~=1.60.2",
+    "pydantic~=2.10.6",
+    "pyyaml",
+    "redis",
+    "safetensors",
+    "setuptools~=75.8.0",
+    "streamlit~=1.42.1",
+    "torch~=2.4.0",
+    "transformers~=4.48.2",
+    "typing-extensions~=4.12.2",
+    "vllm>=0.6.1.post2,<=0.6.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.uv.sources]
+lmcache = { path = "LMCache", editable = true }
+lmcache-server = { path = "lmcache-server", editable = true }
+lmcache-vllm = { path = "lmcache-vllm-extended", editable = true }
