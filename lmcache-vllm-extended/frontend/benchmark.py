@@ -28,6 +28,7 @@ from datetime import datetime
 from typing import List
 
 import chat_session
+import matplotlib.pyplot as plt
 from request_generator import RequestGenerator, Request
 
 
@@ -190,6 +191,41 @@ def save_results(results: List[dict], output_path: str):
     print(f"\nResults saved to {output_path}")
 
 
+def graph_q1(csv_path: str, output_path: str):
+    """Plot seq_length vs total_latency_s and save the graph."""
+    seq_lengths = []
+    total_latencies = []
+
+    with open(csv_path, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            seq_length = row.get("seq_length")
+            total_latency = row.get("total_latency_s")
+            if not seq_length or not total_latency:
+                continue
+            try:
+                seq_lengths.append(int(seq_length))
+                total_latencies.append(float(total_latency))
+            except ValueError:
+                continue
+
+    if not seq_lengths:
+        print("No valid Q1 data found to plot.")
+        return
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(seq_lengths, total_latencies, marker="o", linestyle="-")
+    plt.xlabel("seq_length")
+    plt.ylabel("total_latency_s")
+    plt.title("Q1: seq_length vs total_latency_s")
+    plt.grid(True, alpha=0.3)
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    plt.savefig(output_path, bbox_inches="tight")
+    plt.close()
+    print(f"Q1 graph saved to {output_path}")
+
+
 # -----------------------------------------------------------------------
 # CLI entry-point
 # -----------------------------------------------------------------------
@@ -253,6 +289,7 @@ def main():
         out_path = f"results/{args.mode}_{timestamp}.csv"
 
     save_results(results, out_path)
+    graph_q1(out_path, "results/q1_graph.png")
 
 
 if __name__ == "__main__":
