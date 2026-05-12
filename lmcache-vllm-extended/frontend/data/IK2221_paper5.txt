@@ -1,0 +1,56 @@
+IK2221 VT26
+
+Hieu Vu (hieuvtm@kth.se)
+
+PAPER 5: SplitRPC: A Control + Data Path Splitting RPC Stack for ML
+Inference Serving
+1
+
+Paper summary
+
+The paper tackles the growing problem of network overhead when executing machine learning models in distributed systems. Because modern hardware has ”precipitously reduced their
+execution times” , the network delay—often called the ”RPC tax” —now dominates the total
+processing time. While earlier designs tried moving the entire networking stack to the GPU to
+avoid copying data, this forces the GPU to manage the scheduling of multiple kernels. This
+approach is ”catastrophically slow” for real-world ML applications because GPU-based orchestration introduces heavy synchronization overhead when launching multiple kernels.
+To resolve this, the authors introduce SplitRPC, which separates the networking flow into
+two distinct paths. It routes the control instructions to the host CPU, enabling it to efficiently
+orchestrate the complex model, while simultaneously transferring the data payload directly to
+the accelerator, using commodity NIC programmed to split the packet on the fly. Tested across
+various models, SplitRPC reduced the average execution time by 52% and achieved ”up to
+2.4x gains in throughput” by enabling dynamic batching, without needing costly SmartNIC
+hardware.
+2
+
+Contributions
+
+First, the paper identifies that the RPC penalty consists of two primary components: the data
+movement and the ”orchestration of ML kernels”. Recognizing this prevents system designers
+from solely optimizing data transfer at the expense of control efficiency.
+Second, the authors design and implement a ”control + data path splitting” architecture
+using standard, widely available network cards. By utilizing common ”scatter-gather DMAs” to
+split incoming packets, the system bypasses the host memory for data transfer while maintaining
+the CPU’s superior scheduling capabilities.
+Third, the paper introduces a ”novel queueing mechanism” called Tensor Queues, which
+manages memory layout for batching to seamlessly organize incoming requests. This innovation
+enables ”dynamic batching of the inference tasks” directly on the GPU, allowing the server to
+handle significantly higher request loads before saturating.
+3
+
+Problems
+
+First, the proposed architecture faces unexpected scaling limitations when deployed on SmartNICs under specific workloads. For lightweight models with high arrival rates, the ”less capable
+ARM cores on the SmartNIC” become a severe bottleneck, causing these expensive devices to
+underperform compared to standard, cheaper network cards.
+Second, the system heavily depends on specific hardware features and proprietary software interfaces. For example, it relies on vendor-specific peer-to-peer capabilities like ”Nvidia’s
+GPUDirect” and recently introduced ”CUDA Virtual Memory APIs”. These rigid requirements
+could restrict the solution’s deployability in older or diverse cloud environments that lack these
+exact configurations.
+Third, the study leaves questions regarding reliability and fault tolerance unresolved. Because SplitRPC utilizes a ”UDP-based transport protocol” to bypass the operating system
+kernel, it remains unclear how the system would gracefully recover from severe packet loss or
+out-of-order segment arrivals in highly congested datacenters.
+Finally, the approach is primarily evaluated on GPU-based ML inference workloads, and it
+remains unclear whether the same control–data separation would generalize to other accelerators
+or heterogeneous systems with different execution and orchestration characteristics.
+
+

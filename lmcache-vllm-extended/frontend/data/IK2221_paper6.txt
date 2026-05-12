@@ -1,0 +1,59 @@
+IK2221 VT26
+
+Hieu Vu (hieuvtm@kth.se)
+
+PAPER 6: RDMA is Turing complete, we just did not know it yet!
+1
+
+Paper summary
+
+The paper addresses a key limitation of Remote Direct Memory Access (RDMA) in distributed
+systems. While “it is becoming increasingly popular for distributed systems to exploit offload to
+reduce load on the CPU”, standard RDMA cannot handle complex offloads—like data structure
+traversals—without CPU intervention. Existing solutions rely on specialized SmartNICs, which
+“can cost up to 5.7x more than commodity RDMA NICs” and create a “management burden
+to the system operator”. To solve this, the authors introduce RedN, “a principled, practical
+approach to implementing complex RDMA offloads, without requiring any hardware modifications.” By proving that “RDMA is Turing complete”, they demonstrate how commodity RNICs
+can execute complex logic using “self-modifying RDMA chains”.
+RedN achieves computationally universal offloads by leveraging the “compare-and-swap
+(CAS) verb” to create conditional branching. It combines this with “WAIT and ENABLE
+RDMA verbs” for strict execution ordering and “WQ recycling” to enable unbounded loops
+directly on the NIC hardware. Evaluated by integrating these offloads into the “Memcached
+key-value store”, RedN “can reduce the latency of key-value get operations by up to 2.6x” compared to state-of-the-art baselines like FaRM. Furthermore, under heavy server load, bypassing
+the host CPU entirely means RedN “can reduce latency by up to 35x” while providing strict
+performance isolation.
+2
+
+Contributions
+
+First, the paper reveals a fundamental theoretical insight: standard RDMA verbs can be combined to achieve Turing completeness. This makes it possible to dynamically alter control flow
+on an RNIC, enabling standard constructs such as conditionals and loops.
+Second, it presents a new technique for executing complex network offloads using widely
+available, commodity hardware. By demonstrating that operations like “remote data structure
+traversals, such as hash tables and linked lists” can be performed without expensive SmartNICs,
+it improves the deployment accessibility of high-performance key-value stores.
+Third, it offers largely improved reliability and availability for distributed applications. Because the NIC can operate entirely autonomously via WQ recycling, the approach provides
+“applications with failure resiliency to OS and process crashes”, allowing the NIC to continue
+serving read requests even if the host machine’s operating system panics.
+3
+
+Problems
+
+First, the approach relies on vendor-specific, proprietary hardware behaviors. For instance, the
+implementation requires configuring the Mellanox ConnectX firmware “to allow the WR id field
+to be manipulated freely” to store conditional operands, and notes that next-generation Intel
+RNICs lack an “equivalent for the WAIT primitive”. These rigid dependencies pose unrealistic
+deployment requirements across heterogeneous cloud environments.
+Second, there is a significant performance penalty for enforcing the strict execution order
+required for branching. Achieving conditional logic requires “doorbell ordering” to prevent the
+NIC from prefetching instructions, which eliminates latency-hiding parallelism and results in
+“an overhead of 0.54 µs per additional WR.” This non-linear latency increase severely limits the
+complexity of the algorithms that can be practically offloaded before the overhead outweighs
+the network savings.
+Third, the approach introduces potential security and resource-exhaustion vulnerabilities
+in multi-tenant environments. While the paper mentions hardware “WQ rate-limiters” exist,
+allowing clients to trigger dynamic “unbounded loops” poses a serious risk. Buggy or malicious
+self-modifying offload code could permanently stall NIC processing units or cause memory
+corruption.
+
+

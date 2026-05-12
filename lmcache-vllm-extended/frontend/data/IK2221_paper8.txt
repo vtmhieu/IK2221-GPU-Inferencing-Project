@@ -1,0 +1,54 @@
+IK2221 VT26
+
+Hieu Vu (hieuvtm@kth.se)
+
+PAPER 8: Taming Throughput-Latency Tradeoff in LLM Inference with
+Sarathi-Serve
+1
+
+Paper summary
+
+LLM inference serving faces a ”throughput-latency tradeoff” between its compute-bound prefill
+phase and memory-bound decode phase. Interleaving these phases inherently causes ”generation
+stalls”, where lengthy prefills delay ongoing decodes and produce unacceptable tail latencies.
+Furthermore, in multi-node setups, variance in execution times creates ”pipeline bubbles” that
+”waste GPU cycles”.
+To tackle this challenge, the authors propose Sarathi-Serve, an inference scheduler centered around ”chunked-prefills” and ”stall-free scheduling”. Instead of processing massive input
+prompts entirely at once, the system divides the prefill sequence into smaller, near-equal chunks.
+By piggybacking these chunks onto ongoing decode batches, Sarathi-Serve ensures each iteration
+has similar workload, which avoids idle GPU time and improves efficiency
+Evaluations under tail latency constraints show Sarathi-Serve significantly outperforms baselines. It delivers up to ”2.6x higher serving capacity” for Mistral-7B on a single A100 GPU
+and up to a ”5.6x gain in the end-to-end serving capacity” in pipeline-parallel deployments by
+effectively eliminating generation stalls and mitigating pipeline bubbles.
+2
+
+Contributions
+
+The paper makes three primary contributions. First, it introduces LLM scheduling via ”chunkedprefills” and ”stall-free batching”. This approach seamlessly merges compute-bound prefill
+chunks with memory-bound decodes, achieving high batching throughput while strictly minimizing the impact on ”time-between-tokens” (TBT) latency.
+Second, it exposes pitfalls in ”prefill-prioritizing” policies and mitigates ”pipeline bubbles”
+in iteration-level scheduling. By ensuring uniform micro-batch computation, the method saves
+wasted GPU cycles, making it feasible to efficiently deploy and scale massive models using
+”pipeline-parallelism” across commodity networks.
+Finally, extensive evaluations across diverse hardware and leading models (e.g., Mistral-7B,
+Falcon-180B) prove the system’s generality. By operating effectively under strict ”Service Level
+Objective (SLO)” constraints, the research offers improved reliability for real-world applications
+and increases end-to-end serving capacity by ”up to an order of magnitude”.
+3
+
+Problems
+
+Despite its significant contributions, the paper exhibits a few notable limitations regarding
+deployment assumptions and evaluation scope. First, Sarathi-Serve relies heavily on a statically
+determined ”token budget” derived from offline profiling and simulation. In highly dynamic
+production environments where request lengths and arrival rates fluctuate unpredictably, a
+fixed budget configuration may become sub-optimal, a constraint the authors acknowledge by
+leaving dynamic budget adjustments to future work.
+Second, the chunking mechanism involves an inherent trade-off regarding initial model responsiveness. Because large input prompts are fragmented and computed across multiple iterations, the ”time-to-first-token” (TTFT) latency is slightly degraded compared to prefillprioritizing systems or disaggregated architectures that execute full prefills with maximum efficiency in a single pass.
+Finally, the evaluation lacks a direct quantitative comparison with emerging disaggregated
+LLM serving architectures, such as ”Splitwise” or ”DistServe”. Because disaggregated systems
+physically isolate the prefill and decode phases onto different replicas to ”entirely eliminate
+the interference” , the absence of this baseline leaves it somewhat ambiguous how SarathiServe’s iteration-level batching truly performs and scales against these fundamentally different
+deployment paradigms.
+
+

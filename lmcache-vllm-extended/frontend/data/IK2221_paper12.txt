@@ -1,0 +1,58 @@
+IK2221 VT26
+
+Hieu Vu (hieuvtm@kth.se)
+
+PAPER 12: CacheBlend: Fast Large Language Model Serving for RAG with
+Cached Knowledge Fusion
+1
+
+Paper summary
+
+This paper tackles the problem of slow response times in Large Language Models (LLMs) when
+they are used for Retrieval-Augmented Generation (RAG). In RAG, multiple context chunks
+are added to the input, and the LLM must process them all during a prefill phase. This ”full
+KV recompute” is very slow and causes a bottleneck. Previous solutions tried to reuse precalculated KV caches, but they either only work for the very first text chunk or they ignore the
+”cross-attention” between different chunks, which leads to poor quality and wrong answers.
+The key idea behind this new approach is a system called CacheBlend, which uses ”selective
+KV recompute”. Instead of recalculating everything from scratch or completely ignoring the
+relationships between chunks, CacheBlend reuses all the pre-computed KV caches but selectively
+recalculates a small percentage (around 15%) of tokens that have the highest deviation. To make
+this even faster, CacheBlend pipelines the calculation time with the time it takes to load the KV
+caches from slower storage like an SSD. The authors evaluated this on models like Llama and
+Mistral, and the findings show that CacheBlend ”reduces time-to-first-token (TTFT) by 2.23.3x and increases the inference throughput by 2.8-5x” compared to the full recompute method,
+without losing any generation quality.
+2
+
+Contributions
+
+The paper’s first major contribution is proposing ”selective KV recompute”, which makes it
+possible to combine multiple pre-computed KV caches together. This dramatically improves
+the speed of LLMs in multi-chunk RAG scenarios without losing the crucial ”cross-attention”
+that keeps the output accurate.
+Additionally, it presents a new technique called the ”gradual filtering scheme”. This allows
+the system to accurately identify which specific tokens need to be recalculated across different
+neural network layers without needing to calculate the full attention matrix, saving a large
+fraction of computing power.
+Finally, it offers a smart loading controller that overlaps the GPU calculation with data
+loading. This makes it possible to store heavy KV caches on cheaper and ”slower non-volatile
+devices (e.g., disk or a separate storage server) without incurring extra delay”, which largely
+improves the cost-efficiency of deploying LLMs.
+3
+
+Problems
+
+Regarding architecture limitations, the authors clearly state that their method relies heavily on
+standard attention sparsity and ”may not apply to language models with architectures other
+than transformer such as Mamba and Griffin.” This means the approach might not scale or
+adapt to future non-transformer AI models.
+The system also makes specific hardware assumptions, hiding the recalculation delay by
+assuming the SSD loading time is slower than or equal to the GPU compute time. If deployed
+on a system with extremely fast memory storage (like high-end NVMe) but a weaker GPU, this
+pipelining advantage would disappear, and the selective computation would cause actual delays
+for the user.
+Finally, there is a vulnerability to correlation breaking. The gradual filtering method assumes that tokens with high errors in one layer will naturally have high errors in the next
+layer. If a specific user prompt or unusual dataset causes this correlation to break, CacheBlend
+might select the wrong tokens to update, which could lead to a sudden and unexpected drop in
+generation quality.
+
+
