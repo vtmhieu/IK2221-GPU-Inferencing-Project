@@ -90,6 +90,13 @@ To run the LMCache storage server you can go to the ```lmcache-server``` directo
 ```
 python3 -m lmcache_server.server <server_ip> <port> <storage_dir>
 ```
+
+example:
+```
+python3 -m lmcache_server.server 127.0.0.1 65432 /tmp/lmcache_storage
+
+```
+
 The storage directory is where the server keeps all the stored KV-Caches.
 Alternatively, it is possible to set `<storage_dir>` to `cpu` but in this project we prefer to have KV-caches written in a file.
 
