@@ -25,7 +25,6 @@ from typing import List, Iterator
 # ---------------------------------------------------------------------------
 # Pre-defined question templates — each is generic enough to apply to any
 # research-paper context.  Extend this list to increase diversity.
-# ---------------------------------------------------------------------------
 QUESTION_TEMPLATES = [
     "What is the main contribution of this paper?",
     "What problem does this paper address?",
@@ -45,6 +44,7 @@ QUESTION_TEMPLATES = [
 ]
 
 
+# TODO: add a field for the number of tokens generated
 @dataclass
 class Request:
     """A single benchmark request."""
