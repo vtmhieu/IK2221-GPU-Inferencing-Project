@@ -22,7 +22,6 @@ from dataclasses import dataclass, field
 from typing import List, Iterator
 
 
-# ---------------------------------------------------------------------------
 # Pre-defined question templates — each is generic enough to apply to any
 # research-paper context.  Extend this list to increase diversity.
 QUESTION_TEMPLATES = [
@@ -41,6 +40,8 @@ QUESTION_TEMPLATES = [
     "Describe the experimental setup used in this paper.",
     "What trade-offs does the proposed solution involve?",
     "How does this paper relate to network systems or ML inference?",
+    "Who are the authors of this paper?",
+    "Does the authors provide metrics about latency?"
 ]
 
 
