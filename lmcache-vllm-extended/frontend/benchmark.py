@@ -9,7 +9,7 @@ Usage:
     # Random requests (Q3 — diversity analysis)
     python benchmark.py --mode random --num-requests 30
 
-    # Sequential / grouped by context (Q1 — seq length vs latency)
+    # Sequential / grouped by context (Q1 — token length vs latency)
     python benchmark.py --mode sequential --num-per-context 3
 
     # Repeated same context (Q2 — cache reuse)
@@ -87,8 +87,8 @@ def run_single_request(
         "request_id": request.request_id,
         "context_id": request.context_id,
         "question": request.question,
-        "seq_length": request.seq_length,
-        "context_length": len(request.context_text),
+        "token_length": request.token_length,
+        "context_tokens": request.context_tokens,
         "ttft_s": round(ttft, 4) if ttft else None,
         "total_latency_s": round(total_latency, 4),
         "response_length": len(response_text),
@@ -127,7 +127,7 @@ def run_benchmark(
                 print(
                     f"          TTFT={result['ttft_s']:.3f}s  "
                     f"Total={result['total_latency_s']:.3f}s  "
-                    f"SeqLen={result['seq_length']}"
+                    f"Tokens={result['token_length']}"
                 )
         except Exception as e:
             print(f"  ERROR on request {req.request_id}: {e}", file=sys.stderr)
@@ -135,8 +135,8 @@ def run_benchmark(
                 "request_id": req.request_id,
                 "context_id": req.context_id,
                 "question": req.question,
-                "seq_length": req.seq_length,
-                "context_length": len(req.context_text),
+                "token_length": req.token_length,
+                "context_tokens": req.context_tokens,
                 "ttft_s": None,
                 "total_latency_s": None,
                 "response_length": 0,
@@ -172,8 +172,8 @@ CSV_FIELDS = [
     "request_id",
     "context_id",
     "question",
-    "seq_length",
-    "context_length",
+    "token_length",
+    "context_tokens",
     "ttft_s",
     "total_latency_s",
     "response_length",
@@ -192,32 +192,35 @@ def save_results(results: List[dict], output_path: str):
 
 
 def graph_q1(csv_path: str, output_path: str):
-    """Plot seq_length vs total_latency_s and save the graph."""
-    seq_lengths = []
-    total_latencies = []
+    """Plot token_length vs total_latency_s and save the graph."""
+    points = []
 
     with open(csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            seq_length = row.get("seq_length")
+            token_length = row.get("token_length")
             total_latency = row.get("total_latency_s")
-            if not seq_length or not total_latency:
+            if not token_length or not total_latency:
                 continue
             try:
-                seq_lengths.append(int(seq_length))
-                total_latencies.append(float(total_latency))
+                points.append((int(token_length), float(total_latency)))
             except ValueError:
                 continue
 
-    if not seq_lengths:
+    if not points:
         print("No valid Q1 data found to plot.")
         return
 
+    # Sort by token length so the line plot is monotonic in x.
+    points.sort(key=lambda item: item[0])
+    token_lengths, total_latencies = zip(*points)
+
     plt.figure(figsize=(8, 5))
-    plt.plot(seq_lengths, total_latencies, marker="o", linestyle="-")
-    plt.xlabel("seq_length")
+    plt.plot(token_lengths, total_latencies, marker="o", linestyle="-")
+    plt.scatter(token_lengths, total_latencies, s=16, alpha=0.6)
+    plt.xlabel("token_length")
     plt.ylabel("total_latency_s")
-    plt.title("Q1: seq_length vs total_latency_s")
+    plt.title("Q1: token_length vs total_latency_s")
     plt.grid(True, alpha=0.3)
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
@@ -247,7 +250,7 @@ def main():
         default="random",
         help=(
             "random: shuffled contexts (Q3 diversity). "
-            "sequential: grouped by context (Q1 seq-length). "
+            "sequential: grouped by context (Q1 token-length). "
             "repeated: same context repeated (Q2 cache reuse)."
         ),
     )

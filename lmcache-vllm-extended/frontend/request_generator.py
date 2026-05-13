@@ -18,8 +18,10 @@ Usage:
 
 import os
 import random
-from dataclasses import dataclass, field
-from typing import List, Iterator
+from dataclasses import dataclass
+from typing import List
+
+from transformers import AutoTokenizer
 
 
 # Pre-defined question templates — each is generic enough to apply to any
@@ -45,7 +47,9 @@ QUESTION_TEMPLATES = [
 ]
 
 
-# TODO: add a field for the number of tokens generated
+DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+
+
 @dataclass
 class Request:
     """A single benchmark request."""
@@ -53,10 +57,9 @@ class Request:
     context_id: str          # filename stem, e.g. "vllm"
     context_text: str        # full document content
     question: str            # question to ask about the context
-    seq_length: int = 0      # context + question character count (set after init)
-
-    def __post_init__(self):
-        self.seq_length = len(self.context_text) + len(self.question)
+    context_tokens: int = 0  # number of tokens in the context
+    question_tokens: int = 0 # number of tokens in the question
+    token_length: int = 0    # total tokens (context + question)
 
 
 class RequestGenerator:
@@ -78,10 +81,13 @@ class RequestGenerator:
         data_dir: str = "data/",
         questions: List[str] | None = None,
         seed: int | None = 42,
+        model_name: str = DEFAULT_MODEL_NAME,
+        tokenizer=None,
     ):
         self.data_dir = data_dir
         self.questions = questions or QUESTION_TEMPLATES
         self.rng = random.Random(seed)
+        self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
         self.contexts = self._load_contexts()
 
         if not self.contexts:
@@ -93,6 +99,9 @@ class RequestGenerator:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _count_tokens(self, text: str) -> int:
+        return len(self.tokenizer.encode(text, add_special_tokens=False))
+
     def _load_contexts(self) -> dict:
         """Load all .txt files from data_dir into {context_id: text}."""
         contexts = {}
@@ -126,12 +135,17 @@ class RequestGenerator:
         for i in range(num_requests):
             ctx_id = self.rng.choice(context_ids)
             question = self.rng.choice(self.questions)
+            context_tokens = self._count_tokens(self.contexts[ctx_id])
+            question_tokens = self._count_tokens(question)
             requests.append(
                 Request(
                     request_id=i,
                     context_id=ctx_id,
                     context_text=self.contexts[ctx_id],
                     question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
                 )
             )
 
@@ -154,12 +168,17 @@ class RequestGenerator:
                 min(num_per_context, len(self.questions)),
             )
             for question in chosen_questions:
+                context_tokens = self._count_tokens(ctx_text)
+                question_tokens = self._count_tokens(question)
                 requests.append(
                     Request(
                         request_id=req_id,
                         context_id=ctx_id,
                         context_text=ctx_text,
                         question=question,
+                        context_tokens=context_tokens,
+                        question_tokens=question_tokens,
+                        token_length=context_tokens + question_tokens,
                     )
                 )
                 req_id += 1
@@ -180,14 +199,20 @@ class RequestGenerator:
                 f"Available: {self.get_context_ids()}"
             )
         ctx_text = self.contexts[context_id]
+        context_tokens = self._count_tokens(ctx_text)
         requests = []
         for i in range(num_requests):
+            question = self.rng.choice(self.questions)
+            question_tokens = self._count_tokens(question)
             requests.append(
                 Request(
                     request_id=i,
                     context_id=context_id,
                     context_text=ctx_text,
-                    question=self.rng.choice(self.questions),
+                    question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
                 )
             )
         return requests
@@ -229,10 +254,10 @@ if __name__ == "__main__":
         requests = gen.generate_repeated(ctx, args.num_requests)
 
     print(f"Generated {len(requests)} requests:\n")
-    print(f"{'ID':>4}  {'Context':<35}  {'SeqLen':>7}  Question")
+    print(f"{'ID':>4}  {'Context':<35}  {'Tokens':>7}  Question")
     print("-" * 100)
     for req in requests:
         print(
             f"{req.request_id:>4}  {req.context_id:<35}  "
-            f"{req.seq_length:>7}  {req.question[:50]}"
+            f"{req.token_length:>7}  {req.question[:50]}"
         )
