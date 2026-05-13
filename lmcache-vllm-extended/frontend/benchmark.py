@@ -251,12 +251,20 @@ def main():
         help=(
             "random: shuffled contexts (Q3 diversity). "
             "sequential: grouped by context (Q1 token-length). "
-            "repeated: same context repeated (Q2 cache reuse)."
+            "same_context_same_question: Exact same prompt repeated (Max cache hit). "
+            "same_context_multiple_questions: One context, variety of questions. "
+            "repeated: same context and request repeated (Q2 cache reuse). Call same context and same question 5 times, then another question 5 times, etc. Afterwards, call another context with the same question 5 times, then another question 5 times, etc"
         ),
     )
+    # specific numbers for reqeusts, questions, contexts, etc
     parser.add_argument("--num-requests", type=int, default=30, help="Number of requests (random/repeated)")
+    parser.add_argument("--num-questions", type=int, default=5, help="Questions per context")
+    parser.add_argument("--num-contexts", type=int, default=3, help="Number of contexts for 'repeated' mode")
     parser.add_argument("--num-per-context", type=int, default=3, help="Requests per context (sequential)")
+
+    # specific contexts or questions
     parser.add_argument("--context-id", default=None, help="Context ID for 'repeated' mode")
+    parser.add_argument("--question", default=None, help="Specific question text to use")
 
     # Output
     parser.add_argument(
@@ -275,10 +283,30 @@ def main():
         requests = gen.generate(args.num_requests)
     elif args.mode == "sequential":
         requests = gen.generate_sequential(num_per_context=args.num_per_context)
-    elif args.mode == "repeated":
-        ctx = args.context_id or gen.get_context_ids()[0]
-        requests = gen.generate_repeated(ctx, args.num_requests)
 
+    elif args.mode == "same_context_same_question":
+        ctx = args.context_id or gen.get_context_ids()[0]
+        requests = gen.generate_same_context_same_question(
+            context_id=ctx, 
+            question=args.question, 
+            num_requests=args.num_requests
+        )
+
+    elif args.mode == "same_context_multiple_questions":
+        ctx = args.context_id or gen.get_context_ids()[0]
+        requests = gen.generate_same_context_multiple_questions(
+            context_id=ctx, 
+            num_questions=args.num_questions
+        )
+
+    elif args.mode == "repeated":
+        # New repeated logic: Different contexts, multiple questions each
+        # If context_id is provided as a single string, we wrap it in a list
+        ctx_list = [args.context_id] if args.context_id else None
+        requests = gen.generate_multiple_contexts_multiple_questions(
+            num_contexts=args.num_contexts,
+            context_ids=ctx_list
+        )
     print(f"Generated {len(requests)} requests in '{args.mode}' mode\n")
 
     # --- Run benchmark ---

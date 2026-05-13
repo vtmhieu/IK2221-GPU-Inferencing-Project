@@ -184,38 +184,95 @@ class RequestGenerator:
                 req_id += 1
         return requests
 
-    def generate_repeated(
-        self, context_id: str, num_requests: int = 10
+    def generate_same_context_same_question(
+        self, context_id: str, question: str | None = None, num_requests: int = 5
     ) -> List[Request]:
         """
-        Generate multiple requests for the *same* context.
-
-        Useful for Task 1 Q2: measuring latency improvement when a
-        previously-seen context is fed again (KV cache reuse).
+        Base function: Generates N requests for the exact same context/question pair.
         """
         if context_id not in self.contexts:
-            raise ValueError(
-                f"Unknown context_id '{context_id}'. "
-                f"Available: {self.get_context_ids()}"
-            )
+            raise ValueError(f"Unknown context_id '{context_id}'")
+
+        selected_question = question or self.rng.choice(self.questions)
         ctx_text = self.contexts[context_id]
+        
         context_tokens = self._count_tokens(ctx_text)
+        question_tokens = self._count_tokens(selected_question)
+        
         requests = []
         for i in range(num_requests):
-            question = self.rng.choice(self.questions)
-            question_tokens = self._count_tokens(question)
             requests.append(
                 Request(
-                    request_id=i,
+                    request_id=i, # Note: IDs are local to this function's scope
                     context_id=context_id,
                     context_text=ctx_text,
-                    question=question,
+                    question=selected_question,
                     context_tokens=context_tokens,
                     question_tokens=question_tokens,
                     token_length=context_tokens + question_tokens,
                 )
             )
         return requests
+
+    def generate_same_context_multiple_questions(
+        self, 
+        context_id: str, 
+        num_questions: int = 3,
+        questions_list: List[str] | None = None
+    ) -> List[Request]:
+        """
+        Calls generate_same_context_same_question for multiple different questions 
+        within one context.
+        It is rewritting the id counter in case the "generate_same_context_same_question
+        is being called multiple times (as requests will have the same request_id)
+        """
+        # Default to sampling from global templates if no list provided
+        if questions_list is None:
+            questions_list = self.rng.sample(self.questions, min(num_questions, len(self.questions)))
+        
+        all_requests = []
+        global_id_counter = 0
+        
+        for q in questions_list:
+            # We call the 'same_question' function with num_requests=1
+            req_list = self.generate_same_context_same_question(context_id, question=q, num_requests=5)
+            # Re-assign ID to maintain sequence in this specific function's return list
+            for r in req_list:
+                r.request_id = global_id_counter
+                all_requests.append(r)
+                global_id_counter += 1
+                
+        return all_requests
+
+    def generate_multiple_contexts_multiple_questions(
+        self, 
+        num_contexts: int = 3, 
+        context_ids: List[str] | None = None
+    ) -> List[Request]:
+        """
+        Highest level: Calls generate_same_context_multiple_questions for 
+        different contexts.
+        It is rewritting the id counter in case the "generate_same_context_same_question
+        is being called multiple times (as requests will have the same request_id)
+        """
+        # Default to sampling from available context files if no list provided
+        if context_ids is None:
+            available = self.get_context_ids()
+            context_ids = self.rng.sample(available, min(num_contexts, len(available)))
+
+        all_requests = []
+        global_id_counter = 0
+
+        for ctx_id in context_ids:
+            # Calls the multiple-question function for this context
+            req_list = self.generate_same_context_multiple_questions(ctx_id)
+            # Re-assign ID to maintain sequence across all contexts
+            for r in req_list:
+                r.request_id = global_id_counter
+                all_requests.append(r)
+                global_id_counter += 1
+
+        return all_requests
 
 
 # -----------------------------------------------------------------------
