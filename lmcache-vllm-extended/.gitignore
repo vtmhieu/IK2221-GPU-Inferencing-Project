@@ -58,5 +58,3 @@ cover/
 outdated/
 perf-test.py
 *.prof
-
-.run-logs
