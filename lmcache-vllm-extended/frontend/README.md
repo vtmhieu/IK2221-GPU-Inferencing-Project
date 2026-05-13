@@ -4,7 +4,7 @@ This directory contains the Streamlit chat frontend, CLI client, and the benchma
 
 ## Directory Structure
 
-```
+```bash
 frontend/
 ├── chat_session.py        # OpenAI-compatible client wrapper (provided)
 ├── cli.py                 # Interactive CLI chat client (provided)
@@ -44,6 +44,7 @@ Wait until you see `Uvicorn running on http://0.0.0.0:8000` before proceeding.
 ---
 
 ## Running the Streamlit Frontend (should run in VScode if you are running on school server)
+
 ### Terminal 3 — Frontend
 
 ```bash
@@ -54,7 +55,7 @@ streamlit run frontend.py
 ```
 
 Access via JupyterHub proxy: `https://<jupyterhub-url>/user/<username>/proxy/8501/`
-Or just simply click on the url "http://localhost:8501/" provided after running the command above.
+Or just simply click on the url <http://localhost:8501/> provided after running the command above.
 
 ## Running the CLI Client
 
