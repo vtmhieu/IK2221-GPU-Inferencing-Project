@@ -127,6 +127,13 @@ Measures how latency changes as the combined context + question length increases
 python benchmark.py --mode increasing_length -o results/q1_seqlen.csv
 ```
 
+To avoid reusing LMCache entries from previous benchmark runs without restarting
+the services, add `--cold-run`:
+
+```bash
+python benchmark.py --mode increasing_length --cold-run -o results/q1_seqlen.csv
+```
+
 The graph result is saved as a csv if we specify the output with -g
 
 ### Q2 — KV Cache Reuse (Re-feeding Old Requests)
