@@ -45,7 +45,7 @@ QUESTION_TEMPLATES = [
     "Who are the authors of this paper?",
     "Does the authors provide metrics about latency?"
 ]
-QUESTION_TEMPLATES_MEDIUM={
+QUESTION_TEMPLATES_MEDIUM = [
     """Read the paper carefully and explain the primary technical contribution. Include:
     1. The core problem being addressed
     2. The proposed solution
@@ -79,9 +79,9 @@ QUESTION_TEMPLATES_MEDIUM={
     - Any weaknesses or missing evaluations
 
     Conclude with your assessment of the rigor of the evaluation."""
-}
+]
 
-QUESTION_TEMPLATES_LARGE={
+QUESTION_TEMPLATES_LARGE = [
     """You are an expert researcher in distributed systems, machine learning systems, and large-scale inference infrastructure. Carefully read the provided paper and produce a comprehensive technical review intended for an audience of systems researchers and ML infrastructure engineers.
 
 Your review should contain the following sections:
@@ -145,7 +145,7 @@ Summarize future work proposed by the authors and suggest additional research di
 Provide an overall technical assessment of the paper’s significance, strengths, weaknesses, and likely practical impact.
 
 Your response should be highly detailed, technically rigorous, and approximately 1200-1500 words long."""
-}
+]
 
 
 DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
