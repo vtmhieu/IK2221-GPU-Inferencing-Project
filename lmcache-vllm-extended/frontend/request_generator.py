@@ -45,6 +45,107 @@ QUESTION_TEMPLATES = [
     "Who are the authors of this paper?",
     "Does the authors provide metrics about latency?"
 ]
+QUESTION_TEMPLATES_MEDIUM={
+    """Read the paper carefully and explain the primary technical contribution. Include:
+    1. The core problem being addressed
+    2. The proposed solution
+    3. Why the proposed approach is different from prior work
+    4. The most important experimental result
+    Keep the response under 200 words""",
+    """Provide a structured summary of this paper. Your summary should include:
+    - Research motivation
+    - Problem statement
+    - System architecture or methodology
+    - Experimental setup
+    - Main findings
+    - Limitations
+    - Suggested future work
+
+    Use concise technical language and organize the response with bullet points.""",
+    """Compare the approach proposed in this paper with previous approaches discussed by the authors. Focus specifically on:
+    - Architectural differences
+    - Performance trade-offs
+    - Scalability considerations
+    - Latency implications
+    - Resource efficiency
+
+    If numerical metrics are available, include them in the comparison.""",
+    """ 
+    Analyze the evaluation methodology used in this paper. Explain:
+    - Which datasets or benchmarks were used
+    - Why these benchmarks are appropriate
+    - Which metrics were reported
+    - Whether the experiments are sufficient to validate the claims
+    - Any weaknesses or missing evaluations
+
+    Conclude with your assessment of the rigor of the evaluation."""
+}
+
+QUESTION_TEMPLATES_LARGE={
+    """You are an expert researcher in distributed systems, machine learning systems, and large-scale inference infrastructure. Carefully read the provided paper and produce a comprehensive technical review intended for an audience of systems researchers and ML infrastructure engineers.
+
+Your review should contain the following sections:
+
+1. Executive Summary
+Provide a concise overview of the paper’s goals, contributions, and findings.
+
+2. Research Motivation
+Explain the broader systems or machine learning problem being addressed. Discuss why this problem matters in practice, including scalability, latency, throughput, reliability, or efficiency concerns.
+
+3. Technical Contributions
+Describe the main innovations proposed by the paper. For each contribution:
+- Explain the idea clearly
+- Describe how it differs from prior work
+- Explain why it is technically important
+
+4. System Architecture and Design
+Provide a detailed explanation of the architecture described in the paper. Include:
+- Major system components
+- Data flow
+- Scheduling or orchestration mechanisms
+- Memory management strategies
+- Network communication patterns
+- Inference or training pipeline details if applicable
+
+5. Experimental Methodology
+Describe the evaluation setup in detail:
+- Hardware configuration
+- Cluster or distributed setup
+- Datasets and benchmarks
+- Baselines used for comparison
+- Metrics collected
+- Ablation studies
+- Reproducibility considerations
+
+6. Performance Analysis
+Analyze all reported performance metrics. Include discussion of:
+- Latency
+- Throughput
+- Scalability
+- Resource utilization
+- Cost efficiency
+- Accuracy or quality trade-offs
+- Tail latency or percentile metrics if available
+
+7. Comparison with Prior Work
+Compare this paper against prior approaches mentioned in the related work section. Discuss:
+- Advantages
+- Limitations
+- Novelty
+- Engineering complexity
+- Deployment practicality
+
+8. Limitations and Trade-offs
+Explain all limitations acknowledged by the authors, as well as any additional weaknesses you identify.
+
+9. Future Research Directions
+Summarize future work proposed by the authors and suggest additional research directions that could extend this work.
+
+10. Final Assessment
+Provide an overall technical assessment of the paper’s significance, strengths, weaknesses, and likely practical impact.
+
+Your response should be highly detailed, technically rigorous, and approximately 1200-1500 words long."""
+}
 
 
 DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
