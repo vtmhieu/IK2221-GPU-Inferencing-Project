@@ -23,6 +23,7 @@ STREAMLIT_HOST="${STREAMLIT_HOST:-0.0.0.0}"
 STREAMLIT_PORT="${STREAMLIT_PORT:-8501}"
 
 PIDS=()
+CLEANED_UP=0
 
 usage() {
   cat <<EOF
@@ -58,18 +59,50 @@ done
 
 cleanup() {
   local pid
+  local deadline
+  local any_running
 
-  if [ "${#PIDS[@]}" -eq 0 ]; then
+  if [ "$CLEANED_UP" = "1" ] || [ "${#PIDS[@]}" -eq 0 ]; then
     return
   fi
+  CLEANED_UP=1
+  trap - EXIT INT TERM
 
   echo
   echo "Stopping services..."
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      kill "$pid" >/dev/null 2>&1 || true
+    if kill -0 "-$pid" >/dev/null 2>&1; then
+      kill -TERM "-$pid" >/dev/null 2>&1 || kill -TERM "$pid" >/dev/null 2>&1 || true
+    elif kill -0 "$pid" >/dev/null 2>&1; then
+      kill -TERM "$pid" >/dev/null 2>&1 || true
     fi
   done
+
+  deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    any_running=0
+    for pid in "${PIDS[@]}"; do
+      if kill -0 "-$pid" >/dev/null 2>&1 || kill -0 "$pid" >/dev/null 2>&1; then
+        any_running=1
+        break
+      fi
+    done
+    if [ "$any_running" = "0" ]; then
+      break
+    fi
+    sleep 1
+  done
+
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "-$pid" >/dev/null 2>&1; then
+      echo "Force-stopping process group $pid"
+      kill -KILL "-$pid" >/dev/null 2>&1 || kill -KILL "$pid" >/dev/null 2>&1 || true
+    elif kill -0 "$pid" >/dev/null 2>&1; then
+      echo "Force-stopping process $pid"
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
   wait "${PIDS[@]}" >/dev/null 2>&1 || true
 }
 
@@ -118,19 +151,57 @@ raise SystemExit(1)
 PY
 }
 
+ensure_port_free() {
+  local name="$1"
+  local host="$2"
+  local port="$3"
+
+  python - "$name" "$host" "$port" <<'PY'
+import socket
+import sys
+
+name, host, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    try:
+        sock.bind((host, port))
+    except OSError as exc:
+        print(
+            f"{name} cannot start because {host}:{port} is already in use ({exc}).",
+            file=sys.stderr,
+        )
+        print(
+            "Stop the existing process or choose another port before running this script.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+PY
+}
+
 start_service() {
   local name="$1"
   local cwd="$2"
+  local pid
   shift 2
 
   local log_file="$LOG_DIR/$name.log"
   echo "Starting $name, logging to $log_file"
-  (cd "$cwd" && "$@") >"$log_file" 2>&1 &
-  PIDS+=("$!")
+  if command -v setsid >/dev/null 2>&1; then
+    (cd "$cwd" && exec setsid "$@") >"$log_file" 2>&1 &
+  else
+    (cd "$cwd" && exec "$@") >"$log_file" 2>&1 &
+  fi
+  pid="$!"
+  PIDS+=("$pid")
 }
 
 require_file "$VENV_DIR/bin/activate"
 require_file "$LMCACHE_CONFIG_FILE"
+
+ensure_port_free "LMCache server" "$LMCACHE_SERVER_HOST" "$LMCACHE_SERVER_PORT"
+ensure_port_free "vLLM server" "0.0.0.0" "$VLLM_PORT"
+if [ "$START_FRONTEND" = "1" ]; then
+  ensure_port_free "Streamlit frontend" "$STREAMLIT_HOST" "$STREAMLIT_PORT"
+fi
 
 mkdir -p "$LOG_DIR"
 if [ "$CLEAR_LMCACHE_STORAGE" = "1" ]; then
