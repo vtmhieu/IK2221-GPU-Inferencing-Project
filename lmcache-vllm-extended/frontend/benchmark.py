@@ -195,18 +195,18 @@ def save_results(results: List[dict], output_path: str):
 
 
 def graph_q1(csv_path: str, output_path: str):
-    """Plot token_length vs total_latency_s and save the graph."""
+    """Plot token_length vs ttft and save the graph."""
     points = []
 
     with open(csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             token_length = row.get("token_length")
-            total_latency = row.get("total_latency_s")
-            if not token_length or not total_latency:
+            ttft = row.get("ttft_s")
+            if not token_length or not ttft:
                 continue
             try:
-                points.append((int(token_length), float(total_latency)))
+                points.append((int(token_length), float(ttft)))
             except ValueError:
                 continue
 
@@ -216,14 +216,14 @@ def graph_q1(csv_path: str, output_path: str):
 
     # Sort by token length so the line plot is monotonic in x.
     points.sort(key=lambda item: item[0])
-    token_lengths, total_latencies = zip(*points)
+    token_lengths, ttft = zip(*points)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(token_lengths, total_latencies, marker="o", linestyle="-")
-    plt.scatter(token_lengths, total_latencies, s=16, alpha=0.6)
+    plt.plot(token_lengths, ttft, marker="o", linestyle="-")
+    plt.scatter(token_lengths, ttft, s=16, alpha=0.6)
     plt.xlabel("token_length")
-    plt.ylabel("total_latency_s")
-    plt.title("Q1: token_length vs total_latency_s")
+    plt.ylabel("ttft_s")
+    plt.title("Q1: token_length vs ttft_s")
     plt.grid(True, alpha=0.3)
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)

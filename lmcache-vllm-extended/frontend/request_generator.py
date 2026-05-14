@@ -155,8 +155,8 @@ DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 class Request:
     """A single benchmark request."""
     request_id: int
-    context_id: str          # filename stem, e.g. "vllm"
-    context_text: str        # full document content
+    context_id: str          # filename, e.g. "vllm"
+    context_text: str        # content of the full document
     question: str            # question to ask about the context
     context_tokens: int = 0  # number of tokens in the context
     question_tokens: int = 0 # number of tokens in the question
