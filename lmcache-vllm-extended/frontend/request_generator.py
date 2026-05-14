@@ -79,16 +79,19 @@ class RequestGenerator:
     def __init__(
         self,
         data_dir: str = "data/",
+        extended_data_dir: str = "additionaldata/",
         questions: List[str] | None = None,
         seed: int | None = 42,
         model_name: str = DEFAULT_MODEL_NAME,
         tokenizer=None,
     ):
         self.data_dir = data_dir
+        self.extended_data_dir = extended_data_dir
         self.questions = questions or QUESTION_TEMPLATES
         self.rng = random.Random(seed)
         self.tokenizer = tokenizer or AutoTokenizer.from_pretrained(model_name)
         self.contexts = self._load_contexts()
+        self.extended_contexts = self._load_extended_contexts()
 
         if not self.contexts:
             raise FileNotFoundError(
@@ -113,12 +116,27 @@ class RequestGenerator:
                 contexts[context_id] = f.read()
         return contexts
 
+    def _load_extended_contexts(self) -> dict:
+        """Load all .txt files from extended_data_dir into {context_id: text}."""
+        contexts = {}
+        for filename in sorted(os.listdir(self.extended_data_dir)):
+            if not filename.endswith(".txt"):
+                continue
+            context_id = filename.removesuffix(".txt")
+            with open(os.path.join(self.extended_data_dir, filename), "r") as f:
+                contexts[context_id] = f.read()
+        return contexts
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def get_context_ids(self) -> List[str]:
         """Return the list of all loaded context IDs."""
         return list(self.contexts.keys())
+
+    def get_extended_context_ids(self) -> List[str]:
+        """Return the list of all loaded context IDs."""
+        return list(self.extended_contexts.keys())
 
     def generate(self, num_requests: int = 50) -> List[Request]:
         """
@@ -142,6 +160,52 @@ class RequestGenerator:
                     request_id=i,
                     context_id=ctx_id,
                     context_text=self.contexts[ctx_id],
+                    question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
+                )
+            )
+
+        # Shuffle to maximize context diversity between consecutive requests
+        self.rng.shuffle(requests)
+        return requests
+
+    def generate_extended(self, num_requests: int = 50) -> List[Request]:
+        """
+        Generate a list of randomized requests.
+
+        Each request pairs a randomly chosen context with a randomly chosen
+        question.  The order is shuffled so that consecutive requests are
+        unlikely to share the same context — this exercises the KV cache
+        eviction behavior.
+        """
+        context_ids = list(self.contexts.keys())
+        extended_context_ids = list(self.extended_contexts.keys())
+        requests = []
+
+        for i in range(num_requests):
+            ctx_id = self.rng.choice(context_ids)
+            extended_ctx_id = self.rng.choice(extended_context_ids)
+            question = self.rng.choice(self.questions)
+            context_tokens = self._count_tokens(self.contexts[ctx_id])
+            question_tokens = self._count_tokens(question)
+            requests.append(
+                Request(
+                    request_id=i,
+                    context_id=ctx_id,
+                    context_text=self.contexts[ctx_id],
+                    question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
+                )
+            )
+            requests.append(
+                Request(
+                    request_id=i,
+                    context_id=extended_ctx_id,
+                    context_text=self.extended_contexts[extended_ctx_id],
                     question=question,
                     context_tokens=context_tokens,
                     question_tokens=question_tokens,

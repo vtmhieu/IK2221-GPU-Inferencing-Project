@@ -9,6 +9,9 @@ Usage:
     # Random requests (Q3 — diversity analysis)
     python benchmark.py --mode random --num-requests 30
 
+    # Random requests with more contexts (Q3 - diversity analysis)
+    python benchmark.py --mode random-extended --num-requests 30
+
     # Sequential / grouped by context (Q1 — token length vs latency)
     python benchmark.py --mode sequential --num-per-context 3
 
@@ -246,7 +249,7 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
         "--mode",
-        choices=["random", "sequential", "repeated"],
+        choices=["random", "sequential", "repeated", "random-extended"],
         default="random",
         help=(
             "random: shuffled contexts (Q3 diversity). "
@@ -281,6 +284,8 @@ def main():
 
     if args.mode == "random":
         requests = gen.generate(args.num_requests)
+    elif args.mode == "random-extended":
+        requests = gen.generate_extended(args.num_requests)
     elif args.mode == "sequential":
         requests = gen.generate_sequential(num_per_context=args.num_per_context)
 

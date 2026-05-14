@@ -1,0 +1,29 @@
+Online Scheduling for LLM Inference with KV Cache Constraints
+Authors: Patrick Jaillet, Jiashuo Jiang, Konstantina Mellou, Marco Molinaro, Chara Podimata, Zijie Zhou
+ 
+**Abstract**
+This paper studies the problem of scheduling LLM inference requests under KV cache memory constraints. The authors introduce a hindsight optimal benchmark formulated as an integer program, prove that no deterministic online algorithm can achieve a constant competitive ratio under arbitrary arrivals, and propose a practical polynomial-time algorithm called Memory-Constrained Shortest-First (MC-SF). Experiments on both synthetic data and a real-world conversation dataset show MC-SF significantly outperforms baseline scheduling algorithms, offering a path toward more sustainable and cost-effective LLM deployment.
+ 
+**1. Introduction**
+Large Language Models have become critical for applications such as chatbots, search engines, and code assistants, but pose substantial computational challenges during inference. Two key difficulties are the KV cache — which reduces redundant computation but grows linearly in memory — and the need to make scheduling decisions within milliseconds. The paper proposes formal scheduling algorithms to address these challenges, motivated by the high operational costs of LLM inference (approximately $700,000 per day for platforms like ChatGPT) and significant energy and water consumption.
+ 
+**2. Model**
+The paper models LLM inference over a discrete time horizon for a single GPU worker with memory limit M. Each request has a prompt size s_i and response length o_i, assumed predictable on arrival. Requests undergo two phases: a prompt phase (memory usage s_i) and a token phase (memory grows as s_i + j for the j-th output token). Batches are processed non-preemptively in one time unit, and the total memory of all ongoing requests must not exceed M at any time. Performance is measured by total end-to-end latency across all requests.
+ 
+**3. Hindsight Optimal Benchmark and Integer Programming**
+To evaluate online algorithms, the authors define a hindsight optimal benchmark with full knowledge of future arrivals and output lengths. This is formulated as an integer program minimising total end-to-end latency subject to memory constraints and non-preemptive scheduling. The benchmark serves as a gold standard against which online algorithms are compared, though it is computationally intractable at scale.
+ 
+**4. Algorithm MC-SF and Theoretical Results**
+The paper proves that no deterministic online algorithm can achieve better than an O(sqrt(n)) competitive ratio in the worst case. Despite this hardness result, the proposed MC-SF algorithm performs well in practice. At each round, MC-SF prioritises in-progress requests, then greedily adds waiting requests in ascending order of output length, checking that future KV cache memory constraints are satisfied throughout. The algorithm runs in O(M^2) time per round. Under the special case where all requests arrive simultaneously with identical prompt sizes, MC-SF is shown to be O(1)-competitive, and achieves a competitive ratio of at most 4 when output lengths are also identical.
+ 
+**5. Numerical Simulations**
+Two sets of experiments are conducted. In synthetic experiments with small instances solved to optimality via Gurobi, MC-SF achieves an average latency ratio of 1.005 versus the hindsight optimal when all requests arrive at once, and 1.047 under online stochastic arrivals. In real-data experiments using a 10,000-conversation subset of the LMSYS-Chat-1M dataset, simulating Llama2-70B on two A100 GPUs, MC-SF substantially outperforms all benchmark algorithms in both high-demand (arrival rate 50/s) and low-demand (10/s) settings. In the high-demand case, MC-SF's latency slope is approximately 1/6 compared to 1/2 for the best baseline.
+ 
+**6. Discussion**
+The paper identifies several open directions. The current model assumes perfect prediction of output lengths; extending to approximate predictions with bounded error is an important next step, though naive approaches using upper-bound estimates are overly conservative. Other future directions include scheduling with multiple parallel GPUs, and settings with mostly stochastic arrivals but occasional extreme outlier requests. The authors note that more efficient scheduling directly reduces GPU requirements, energy consumption, and operational costs.
+ 
+**7. Related Work**
+MC-SF connects to classical online scheduling literature on batching and precedence constraints, but differs fundamentally due to the linearly growing memory usage of KV caches — a feature absent in traditional scheduling models. On the systems side, the paper relates to engineering-focused LLM inference work such as vLLM, Sarathi, and DistServe, but distinguishes itself by providing a formal mathematical model and theoretical guarantees.
+ 
+**8. Conclusion**
+The paper presents a formal model for LLM inference scheduling under KV cache constraints, establishes hardness results for the general online problem, and introduces the MC-SF algorithm with theoretical guarantees under structured conditions. Empirical results confirm strong practical performance on both synthetic and real-world datasets, supporting MC-SF as an effective and theoretically grounded approach to reducing the cost and energy footprint of large-scale LLM deployment.
