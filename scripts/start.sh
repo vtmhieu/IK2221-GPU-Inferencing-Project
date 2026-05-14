@@ -8,6 +8,7 @@ LOG_DIR="${LOG_DIR:-"$ROOT_DIR/.run_logs"}"
 LMCACHE_SERVER_HOST="${LMCACHE_SERVER_HOST:-127.0.0.1}"
 LMCACHE_SERVER_PORT="${LMCACHE_SERVER_PORT:-65432}"
 LMCACHE_STORAGE_DIR="${LMCACHE_STORAGE_DIR:-/tmp/lmcache_storage}"
+CLEAR_LMCACHE_STORAGE="${CLEAR_LMCACHE_STORAGE:-0}"
 
 MODEL="${MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
@@ -22,6 +23,38 @@ STREAMLIT_HOST="${STREAMLIT_HOST:-0.0.0.0}"
 STREAMLIT_PORT="${STREAMLIT_PORT:-8501}"
 
 PIDS=()
+
+usage() {
+  cat <<EOF
+Usage: bash scripts/start.sh [options]
+
+Options:
+  --no-cache       Clear LMCache storage before starting services.
+  --no-frontend    Start only LMCache and vLLM.
+  -h, --help       Show this help message.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --no-cache|--clear-cache)
+      CLEAR_LMCACHE_STORAGE=1
+      ;;
+    --no-frontend)
+      START_FRONTEND=0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 cleanup() {
   local pid
@@ -100,6 +133,14 @@ require_file "$VENV_DIR/bin/activate"
 require_file "$LMCACHE_CONFIG_FILE"
 
 mkdir -p "$LOG_DIR"
+if [ "$CLEAR_LMCACHE_STORAGE" = "1" ]; then
+  if [ -z "$LMCACHE_STORAGE_DIR" ] || [ "$LMCACHE_STORAGE_DIR" = "/" ]; then
+    echo "Refusing to clear unsafe LMCache storage directory: $LMCACHE_STORAGE_DIR" >&2
+    exit 1
+  fi
+  echo "Clearing LMCache storage directory: $LMCACHE_STORAGE_DIR"
+  rm -rf "$LMCACHE_STORAGE_DIR"
+fi
 mkdir -p "$LMCACHE_STORAGE_DIR"
 
 # shellcheck source=/dev/null
