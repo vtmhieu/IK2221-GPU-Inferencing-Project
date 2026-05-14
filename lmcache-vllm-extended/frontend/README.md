@@ -96,8 +96,9 @@ python request_generator.py --data-dir data/ --mode repeated --context-id vllm -
 Measures how latency changes as the combined context + question length increases.
 
 ```bash
-python benchmark.py --mode sequential --num-per-context 3 -o results/q1_seqlen.csv
+python benchmark.py --mode increasing_length -o results/q1_seqlen.csv
 ```
+The graph result is saved as a csv if we specify the output with -g
 
 ### Q2 — KV Cache Reuse (Re-feeding Old Requests)
 
@@ -138,6 +139,7 @@ python benchmark.py --help
 | `--num-per-context`| `3`         | Requests per context (sequential mode)           |
 | `--context-id`     | *(first)*   | Specific context for repeated mode               |
 | `-o`, `--output`   | auto        | Output CSV path                                  |
+| `-g`,              | auto        | Output graph path                                 |
 
 ---
 
