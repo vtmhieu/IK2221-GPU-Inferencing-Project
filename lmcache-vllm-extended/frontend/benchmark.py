@@ -196,6 +196,7 @@ def save_results(results: List[dict], output_path: str):
 
 def graph_q1(csv_path: str, output_path: str):
     """Plot token_length vs ttft and save the graph."""
+    output_dir = os.path.dirname(output_path) or "."
     points = []
 
     with open(csv_path, "r", newline="") as f:
@@ -226,7 +227,7 @@ def graph_q1(csv_path: str, output_path: str):
     plt.title("Q1: token_length vs ttft_s")
     plt.grid(True, alpha=0.3)
 
-    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     plt.savefig(output_path, bbox_inches="tight")
     plt.close()
     print(f"Q1 graph saved to {output_path}")
@@ -249,14 +250,15 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
         "--mode",
-        choices=["random", "sequential", "repeated", "random-extended"],
+        choices=["random", "sequential", "repeated", "random-extended", "increasing_length"],
         default="random",
         help=(
             "random: shuffled contexts (Q3 diversity). "
             "sequential: grouped by context (Q1 token-length). "
             "same_context_same_question: Exact same prompt repeated (Max cache hit). "
             "same_context_multiple_questions: One context, variety of questions. "
-            "repeated: same context and request repeated (Q2 cache reuse). Call same context and same question 5 times, then another question 5 times, etc. Afterwards, call another context with the same question 5 times, then another question 5 times, etc"
+            "repeated: same context and request repeated (Q2 cache reuse). Call same context and same question 5 times, then another question 5 times, etc. Afterwards, call another context with the same question 5 times, then another question 5 times, etc. "
+            "increasing_length: fixed 10 requests with increasing prompt length across distinct contexts."
         ),
     )
     # specific numbers for reqeusts, questions, contexts, etc
@@ -275,6 +277,11 @@ def main():
         default=None,
         help="Output CSV path (default: results/<mode>_<timestamp>.csv)",
     )
+    parser.add_argument(
+        "-g", "--graph-dir",
+        default=None,
+        help="Output folder for Q1 graph (uses q1_graph.png filename)",
+    )
 
     args = parser.parse_args()
 
@@ -288,6 +295,9 @@ def main():
         requests = gen.generate_extended(args.num_requests)
     elif args.mode == "sequential":
         requests = gen.generate_sequential(num_per_context=args.num_per_context)
+
+    elif args.mode == "increasing_length":
+        requests = gen.generate_increasing_length()
 
     elif args.mode == "same_context_same_question":
         ctx = args.context_id or gen.get_context_ids()[0]
@@ -320,12 +330,29 @@ def main():
     # --- Save results ---
     if args.output:
         out_path = args.output
+        save_results(results, out_path)
+        if args.graph_dir:
+            graph_path = args.graph_dir
+            if not graph_path.lower().endswith(".png"):
+                graph_path = os.path.join(graph_path, "q1_graph.png")
+            graph_q1(out_path, graph_path)
+        else:
+            graph_q1(out_path, "results/q1_graph.png")
+    elif args.mode == "increasing_length":
+        print("Skipping CSV output for increasing_length (use -o to save).")
+        if args.graph_dir:
+            print("Skipping graph output because no CSV was saved.")
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out_path = f"results/{args.mode}_{timestamp}.csv"
-
-    save_results(results, out_path)
-    graph_q1(out_path, "results/q1_graph.png")
+        save_results(results, out_path)
+        if args.graph_dir:
+            graph_path = args.graph_dir
+            if not graph_path.lower().endswith(".png"):
+                graph_path = os.path.join(graph_path, "q1_graph.png")
+            graph_q1(out_path, graph_path)
+        else:
+            graph_q1(out_path, "results/q1_graph.png")
 
 
 if __name__ == "__main__":
