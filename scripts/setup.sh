@@ -27,6 +27,7 @@ fi
 source "$VENV_DIR/bin/activate"
 
 uv pip install -r "$ROOT_DIR/lmcache-vllm-extended/requirements.txt"
+uv pip install matplotlib
 uv pip install -e "$ROOT_DIR/lmcache-vllm-extended"
 uv pip install -e "$ROOT_DIR/LMCache"
 uv pip install -e "$ROOT_DIR/lmcache-server"
