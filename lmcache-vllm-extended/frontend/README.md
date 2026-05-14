@@ -97,7 +97,8 @@ LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml CUDA_VISIBLE_DEVICE
 ```
 
 If you use `scripts/start.sh` from the repository root, pass `--no-cache`
-when starting services:
+when starting services. The script stops existing listeners on its configured
+ports before starting fresh services.
 
 ```bash
 bash scripts/start.sh --no-cache --no-frontend
