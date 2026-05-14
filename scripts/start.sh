@@ -170,6 +170,7 @@ import sys
 
 name, host, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         sock.bind((host, port))
     except OSError as exc:
@@ -192,6 +193,7 @@ stop_port_listener() {
   python - "$name" "$port" <<'PY'
 import os
 import signal
+import socket
 import sys
 import time
 
@@ -238,6 +240,16 @@ def pids_for_inodes(inodes):
             continue
     return pids
 
+def port_is_bindable(port):
+    for host in ("127.0.0.1", "0.0.0.0"):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+            except OSError:
+                return False
+    return True
+
 def cmdline(pid):
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as f:
@@ -246,31 +258,40 @@ def cmdline(pid):
     except OSError:
         return f"pid {pid}"
 
-inodes = listening_inodes("/proc/net/tcp") | listening_inodes("/proc/net/tcp6")
-pids = pids_for_inodes(inodes)
-if not pids:
-    raise SystemExit(0)
+seen_pids = set()
+deadline = time.monotonic() + 30
+sent_kill = False
 
-for pid in sorted(pids):
-    print(f"Stopping existing {name} listener on port {port}: pid {pid} ({cmdline(pid)})")
-    try:
-        os.kill(pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-
-deadline = time.monotonic() + 10
 while time.monotonic() < deadline:
-    if not any(os.path.exists(f"/proc/{pid}") for pid in pids):
-        raise SystemExit(0)
-    time.sleep(0.5)
+    inodes = listening_inodes("/proc/net/tcp") | listening_inodes("/proc/net/tcp6")
+    pids = pids_for_inodes(inodes)
 
-for pid in sorted(pids):
-    if os.path.exists(f"/proc/{pid}"):
-        print(f"Force-stopping pid {pid}")
+    for pid in sorted(pids - seen_pids):
+        seen_pids.add(pid)
+        print(f"Stopping existing {name} listener on port {port}: pid {pid} ({cmdline(pid)})")
         try:
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
+
+    if not pids and port_is_bindable(port):
+        raise SystemExit(0)
+
+    if not sent_kill and seen_pids and time.monotonic() > deadline - 10:
+        sent_kill = True
+        for pid in sorted(seen_pids):
+            if os.path.exists(f"/proc/{pid}"):
+                print(f"Force-stopping pid {pid}")
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    time.sleep(0.5)
+
+if not port_is_bindable(port):
+    print(f"{name} port {port} is still not reusable after stopping old listeners.", file=sys.stderr)
+    raise SystemExit(1)
 PY
 }
 
