@@ -349,6 +349,46 @@ class RequestGenerator:
                 req_id += 1
         return requests
 
+    def generate_increasing_length(self) -> List[Request]:
+        """
+        Generate 10 requests with increasing prompt complexity.
+
+        Uses 6 short, 3 medium, and 1 large question templates, each
+        paired with a distinct context.
+        """
+        total_requests = 10
+        context_ids = self.get_context_ids()
+        if len(context_ids) < total_requests:
+            raise ValueError(
+                f"Need at least {total_requests} contexts for increasing_length mode; "
+                f"found {len(context_ids)}."
+            )
+
+        short_questions = self.rng.sample(QUESTION_TEMPLATES, 6)
+        medium_questions = self.rng.sample(QUESTION_TEMPLATES_MEDIUM, 3)
+        large_questions = self.rng.sample(QUESTION_TEMPLATES_LARGE, 1)
+        questions = short_questions + medium_questions + large_questions
+
+        selected_contexts = self.rng.sample(context_ids, total_requests)
+        requests: List[Request] = []
+        for i, (ctx_id, question) in enumerate(zip(selected_contexts, questions)):
+            context_text = self.contexts[ctx_id]
+            context_tokens = self._count_tokens(context_text)
+            question_tokens = self._count_tokens(question)
+            requests.append(
+                Request(
+                    request_id=i,
+                    context_id=ctx_id,
+                    context_text=context_text,
+                    question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
+                )
+            )
+
+        return requests
+
     def generate_same_context_same_question(
         self, context_id: str, question: str | None = None, num_requests: int = 5
     ) -> List[Request]:
