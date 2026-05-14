@@ -239,6 +239,19 @@ class RequestGenerator:
         """Return the list of all loaded context IDs."""
         return list(self.extended_contexts.keys())
 
+    @staticmethod
+    def generate_batches(
+        requests: List[Request],
+        batch_size: int,
+    ) -> List[List[Request]]:
+        """Split an existing request list into fixed-size batches."""
+        if batch_size < 1:
+            raise ValueError("batch_size must be at least 1")
+        return [
+            requests[start:start + batch_size]
+            for start in range(0, len(requests), batch_size)
+        ]
+
     def generate(self, num_requests: int = 50) -> List[Request]:
         """
         Generate a list of randomized requests.
