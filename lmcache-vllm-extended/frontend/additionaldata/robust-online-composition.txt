@@ -1,0 +1,59 @@
+Robust Online Composition, Routing and NF Placement for NFV-enabled Services
+Authors: [Please provide the author list if you want it included exactly like the example]
+
+Abstract
+This paper addresses the problem of efficiently composing, routing, and placing Network Functions (NFs) in Network Function Virtualization (NFV)-enabled networks. The authors propose a robust online framework that dynamically determines service function chains, routing paths, and NF placements while adapting to changing traffic demands and resource availability. The solution aims to minimize operational costs, improve resource utilization, and maintain service reliability under uncertain network conditions.
+
+1 Introduction
+
+NFV enables network services to run as software-based virtualized functions instead of dedicated hardware appliances. While NFV increases flexibility and scalability, it introduces challenges in service composition, routing, and NF placement due to dynamic traffic patterns and limited computing/network resources. This paper proposes an online optimization framework that jointly handles these tasks in a robust manner to support efficient and reliable NFV service deployment.
+
+2 Background and Motivation
+
+Traditional network architectures rely on static placement of network appliances, making adaptation to traffic fluctuations difficult. Existing NFV placement approaches often optimize only one aspect, such as routing or placement, and may assume predictable traffic conditions. However, real-world NFV environments experience uncertain demands and failures, requiring adaptive and robust orchestration mechanisms that can respond in real time while maintaining service quality.
+
+3 Robust Online NFV Framework
+
+The proposed framework jointly optimizes three interconnected tasks:
+
+Service Composition: Selecting and chaining the required virtual network functions (VNFs) for each service request.
+Routing: Determining efficient paths through the network while considering bandwidth and latency constraints.
+NF Placement: Deciding where VNFs should be instantiated across available infrastructure resources.
+
+The framework uses online decision-making techniques to react dynamically to incoming requests and changing conditions. Robust optimization methods are incorporated to tolerate uncertainty in traffic demands and infrastructure states. The objective is to minimize deployment and routing costs while maximizing service acceptance and reliability.
+
+4 Optimization Model and Algorithms
+
+The paper formulates the problem as a constrained optimization model that considers:
+
+CPU and memory capacities of NFV nodes
+Link bandwidth constraints
+Service chaining requirements
+Delay and QoS requirements
+Dynamic arrival and departure of service requests
+
+Because the joint optimization problem is computationally complex, the authors develop heuristic and approximation algorithms to enable near real-time execution. The online algorithms continuously update placements and routes as network conditions evolve.
+
+5 Evaluation
+
+Simulation results demonstrate that the proposed framework outperforms baseline methods in several aspects:
+
+Higher service acceptance ratio
+Better resource utilization
+Lower operational and routing costs
+Improved robustness under traffic uncertainty
+Reduced service disruption during dynamic network changes
+
+The evaluation shows that jointly optimizing composition, routing, and placement produces significantly better performance than treating them independently.
+
+6 Robustness and Adaptability
+
+The framework is designed to handle uncertain and fluctuating traffic demands. It dynamically reallocates resources and reroutes service chains when network conditions change. Robust optimization techniques help prevent resource overloading and improve fault tolerance, ensuring stable service delivery even during congestion or partial infrastructure failures.
+
+7 Related Work
+
+Previous NFV research has explored VNF placement, service chaining, and traffic engineering separately. Some approaches rely on static optimization or assume predictable workloads, limiting adaptability. This paper differentiates itself by integrating online service composition, routing, and NF placement into a unified robust optimization framework capable of handling dynamic and uncertain environments.
+
+8 Conclusions
+
+The paper presents a robust online framework for NFV-enabled services that jointly addresses service composition, routing, and NF placement. By combining dynamic optimization with robustness techniques, the proposed solution improves resource efficiency, service reliability, and adaptability to changing network conditions. Future work may include energy-aware optimization, distributed orchestration, and support for large-scale multi-domain NFV environments.
