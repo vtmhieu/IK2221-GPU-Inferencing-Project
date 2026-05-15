@@ -96,7 +96,7 @@ python request_generator.py --data-dir data/ --mode repeated --context-id vllm -
 Measures how latency changes as the combined context + question length increases.
 
 ```bash
-python benchmark.py --mode increasing_length -o results/q1_seqlen.csv
+python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1.csv
 ```
 The graph result is saved as a csv if we specify the output with -g
 
