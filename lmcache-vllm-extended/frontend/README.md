@@ -76,6 +76,34 @@ source ./venv/bin/activate
 cd lmcache-vllm-extended/frontend
 ```
 
+### Cold-cache Benchmark Runs
+
+If you re-run `benchmark.py` while the same LMCache and vLLM services stay up,
+later runs can reuse KV cache entries from earlier runs. For cold-cache numbers,
+restart **both** services and clear the LMCache storage directory before each run.
+
+Manual workflow:
+
+```bash
+# 1. Stop the vLLM server and LMCache server terminals with Ctrl+C.
+# 2. Remove the remote LMCache storage.
+rm -rf /tmp/lmcache_storage
+
+# 3. Start LMCache again.
+python3 -m lmcache_server.server 127.0.0.1 65432 /tmp/lmcache_storage
+
+# 4. In the vLLM terminal, start vLLM again.
+LMCACHE_CONFIG_FILE=lmcache-vllm-extended/configuration.yaml CUDA_VISIBLE_DEVICES=0 python lmcache-vllm-extended/lmcache_vllm/script.py serve Qwen/Qwen2.5-1.5B-Instruct  --gpu-memory-utilization 0.8 --dtype half --port 8000 --guided-decoding-backend lm-format-enforcer
+```
+
+If you use `scripts/start.sh` from the repository root, pass `--no-cache`
+when starting services. The script stops existing listeners on its configured
+ports before starting fresh services.
+
+```bash
+bash scripts/start.sh --no-cache --no-frontend
+```
+
 ### Request Generator — Preview Requests (Optional)
 
 Preview generated requests without sending them to the server:
@@ -90,14 +118,24 @@ python request_generator.py --data-dir data/ --mode sequential
 # Repeated mode — same context
 python request_generator.py --data-dir data/ --mode repeated --context-id vllm --num-requests 10
 ```
+For the following questions let's test the following cache sizes (they are measured in GB)
+- 0.0
+- 0.5 
+- 1.0 
+- 2.0
+- 3.0
+- 4.0
 
 ### Q1 — Latency vs Sequence Length
 
 Measures how latency changes as the combined context + question length increases.
 
 ```bash
-python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1.csv
+python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1_0size.png --cold-run
 ```
+# IMPORTANT Regarding the naming of the file, put the cache size before size in the filenaming
+ e.g. cache of 3 gb file is called graph_q1_30size.png
+      cache of 0.5 gb file is called graph_q1_05size.png
 The graph result is saved as a csv if we specify the output with -g
 
 ### Q2 — KV Cache Reuse (Re-feeding Old Requests)
@@ -128,18 +166,18 @@ python benchmark.py --mode random --num-requests 50 -o results/my_experiment.csv
 python benchmark.py --help
 ```
 
-| Flag               | Default     | Description                                      |
-|--------------------|-------------|--------------------------------------------------|
-| `--ip`             | `127.0.0.1` | vLLM server IP address                           |
-| `--port`           | `8000`      | vLLM server port                                 |
-| `--data-dir`       | `data/`     | Folder containing context `.txt` files           |
-| `--seed`           | `42`        | Random seed for reproducibility                  |
-| `--mode`           | `random`    | `random`, `sequential`, or `repeated`            |
-| `--num-requests`   | `30`        | Number of requests (random/repeated modes)       |
-| `--num-per-context`| `3`         | Requests per context (sequential mode)           |
-| `--context-id`     | *(first)*   | Specific context for repeated mode               |
-| `-o`, `--output`   | auto        | Output CSV path                                  |
-| `-g`,              | auto        | Output graph path                                 |
+| Flag                | Default     | Description                                |
+| ------------------- | ----------- | ------------------------------------------ |
+| `--ip`              | `127.0.0.1` | vLLM server IP address                     |
+| `--port`            | `8000`      | vLLM server port                           |
+| `--data-dir`        | `data/`     | Folder containing context `.txt` files     |
+| `--seed`            | `42`        | Random seed for reproducibility            |
+| `--mode`            | `random`    | `random`, `sequential`, or `repeated`      |
+| `--num-requests`    | `30`        | Number of requests (random/repeated modes) |
+| `--num-per-context` | `3`         | Requests per context (sequential mode)     |
+| `--context-id`      | _(first)_   | Specific context for repeated mode         |
+| `-o`, `--output`    | auto        | Output CSV path                            |
+| `-g`,               | auto        | Output graph path                          |
 
 ---
 
@@ -161,14 +199,14 @@ done
 
 Results are saved as CSV with the following columns:
 
-| Column            | Description                                   |
-|-------------------|-----------------------------------------------|
-| `request_id`      | Sequential request number                     |
-| `context_id`      | Which context file was used                   |
-| `question`        | The question asked                            |
-| `seq_length`      | Context + question character count            |
-| `context_length`  | Context-only character count                  |
-| `ttft_s`          | Time to first token (seconds)                 |
-| `total_latency_s` | Total response time (seconds)                 |
-| `response_length` | Response character count                      |
-| `response_preview`| First 120 chars of model response             |
+| Column             | Description                        |
+| ------------------ | ---------------------------------- |
+| `request_id`       | Sequential request number          |
+| `context_id`       | Which context file was used        |
+| `question`         | The question asked                 |
+| `seq_length`       | Context + question character count |
+| `context_length`   | Context-only character count       |
+| `ttft_s`           | Time to first token (seconds)      |
+| `total_latency_s`  | Total response time (seconds)      |
+| `response_length`  | Response character count           |
+| `response_preview` | First 120 chars of model response  |

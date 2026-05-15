@@ -282,6 +282,14 @@ def main():
         default=None,
         help="Output folder for Q1 graph (uses q1_graph.png filename)",
     )
+    parser.add_argument(
+        "--cold-run",
+        action="store_true",
+        help=(
+            "Add a unique run marker to the prompt so previous benchmark runs "
+            "cannot hit LMCache entries from earlier runs."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -324,8 +332,19 @@ def main():
         )
     print(f"Generated {len(requests)} requests in '{args.mode}' mode\n")
 
+    system_prompt = SYSTEM_PROMPT
+    if args.cold_run:
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        system_prompt = f"{SYSTEM_PROMPT}\nBenchmark cold-run id: {run_id}"
+        print(f"Cold-run mode enabled; cache namespace id: {run_id}\n")
+
     # --- Run benchmark ---
-    results = run_benchmark(requests, ip=args.ip, port=args.port)
+    results = run_benchmark(
+        requests,
+        ip=args.ip,
+        port=args.port,
+        system_prompt=system_prompt,
+    )
 
     # --- Save results ---
     if args.output:

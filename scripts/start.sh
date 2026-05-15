@@ -8,6 +8,8 @@ LOG_DIR="${LOG_DIR:-"$ROOT_DIR/.run_logs"}"
 LMCACHE_SERVER_HOST="${LMCACHE_SERVER_HOST:-127.0.0.1}"
 LMCACHE_SERVER_PORT="${LMCACHE_SERVER_PORT:-65432}"
 LMCACHE_STORAGE_DIR="${LMCACHE_STORAGE_DIR:-/tmp/lmcache_storage}"
+CLEAR_LMCACHE_STORAGE="${CLEAR_LMCACHE_STORAGE:-0}"
+REPLACE_EXISTING="${REPLACE_EXISTING:-1}"
 
 MODEL="${MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
@@ -22,21 +24,93 @@ STREAMLIT_HOST="${STREAMLIT_HOST:-0.0.0.0}"
 STREAMLIT_PORT="${STREAMLIT_PORT:-8501}"
 
 PIDS=()
+CLEANED_UP=0
+
+usage() {
+  cat <<EOF
+Usage: bash scripts/start.sh [options]
+
+Options:
+  --no-cache       Clear LMCache storage before starting services.
+  --no-frontend    Start only LMCache and vLLM.
+  --no-replace    Fail if a configured port is already in use.
+  -h, --help       Show this help message.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --no-cache|--clear-cache)
+      CLEAR_LMCACHE_STORAGE=1
+      ;;
+    --no-frontend)
+      START_FRONTEND=0
+      ;;
+    --replace)
+      REPLACE_EXISTING=1
+      ;;
+    --no-replace)
+      REPLACE_EXISTING=0
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 cleanup() {
   local pid
+  local deadline
+  local any_running
 
-  if [ "${#PIDS[@]}" -eq 0 ]; then
+  if [ "$CLEANED_UP" = "1" ] || [ "${#PIDS[@]}" -eq 0 ]; then
     return
   fi
+  CLEANED_UP=1
+  trap - EXIT INT TERM
 
   echo
   echo "Stopping services..."
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" >/dev/null 2>&1; then
-      kill "$pid" >/dev/null 2>&1 || true
+    if kill -0 "-$pid" >/dev/null 2>&1; then
+      kill -TERM "-$pid" >/dev/null 2>&1 || kill -TERM "$pid" >/dev/null 2>&1 || true
+    elif kill -0 "$pid" >/dev/null 2>&1; then
+      kill -TERM "$pid" >/dev/null 2>&1 || true
     fi
   done
+
+  deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    any_running=0
+    for pid in "${PIDS[@]}"; do
+      if kill -0 "-$pid" >/dev/null 2>&1 || kill -0 "$pid" >/dev/null 2>&1; then
+        any_running=1
+        break
+      fi
+    done
+    if [ "$any_running" = "0" ]; then
+      break
+    fi
+    sleep 1
+  done
+
+  for pid in "${PIDS[@]}"; do
+    if kill -0 "-$pid" >/dev/null 2>&1; then
+      echo "Force-stopping process group $pid"
+      kill -KILL "-$pid" >/dev/null 2>&1 || kill -KILL "$pid" >/dev/null 2>&1 || true
+    elif kill -0 "$pid" >/dev/null 2>&1; then
+      echo "Force-stopping process $pid"
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+
   wait "${PIDS[@]}" >/dev/null 2>&1 || true
 }
 
@@ -85,21 +159,185 @@ raise SystemExit(1)
 PY
 }
 
+ensure_port_free() {
+  local name="$1"
+  local host="$2"
+  local port="$3"
+
+  python - "$name" "$host" "$port" <<'PY'
+import socket
+import sys
+
+name, host, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind((host, port))
+    except OSError as exc:
+        print(
+            f"{name} cannot start because {host}:{port} is already in use ({exc}).",
+            file=sys.stderr,
+        )
+        print(
+            "Stop the existing process or choose another port before running this script.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+PY
+}
+
+stop_port_listener() {
+  local name="$1"
+  local port="$2"
+
+  python - "$name" "$port" <<'PY'
+import os
+import signal
+import socket
+import sys
+import time
+
+name, port = sys.argv[1], int(sys.argv[2])
+
+def listening_inodes(path):
+    inodes = set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            next(f, None)
+            for line in f:
+                fields = line.split()
+                if len(fields) < 10:
+                    continue
+                local_address = fields[1]
+                state = fields[3]
+                inode = fields[9]
+                try:
+                    local_port = int(local_address.rsplit(":", 1)[1], 16)
+                except ValueError:
+                    continue
+                if local_port == port and state == "0A":
+                    inodes.add(inode)
+    except FileNotFoundError:
+        pass
+    return inodes
+
+def pids_for_inodes(inodes):
+    pids = set()
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        fd_dir = os.path.join("/proc", entry, "fd")
+        try:
+            for fd in os.listdir(fd_dir):
+                try:
+                    target = os.readlink(os.path.join(fd_dir, fd))
+                except OSError:
+                    continue
+                if target.startswith("socket:[") and target[8:-1] in inodes:
+                    pids.add(int(entry))
+                    break
+        except (FileNotFoundError, PermissionError):
+            continue
+    return pids
+
+def port_is_bindable(port):
+    for host in ("127.0.0.1", "0.0.0.0"):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+            except OSError:
+                return False
+    return True
+
+def cmdline(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            data = f.read().replace(b"\0", b" ").strip()
+        return data.decode("utf-8", errors="replace") or f"pid {pid}"
+    except OSError:
+        return f"pid {pid}"
+
+seen_pids = set()
+deadline = time.monotonic() + 30
+sent_kill = False
+
+while time.monotonic() < deadline:
+    inodes = listening_inodes("/proc/net/tcp") | listening_inodes("/proc/net/tcp6")
+    pids = pids_for_inodes(inodes)
+
+    for pid in sorted(pids - seen_pids):
+        seen_pids.add(pid)
+        print(f"Stopping existing {name} listener on port {port}: pid {pid} ({cmdline(pid)})")
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+    if not pids and port_is_bindable(port):
+        raise SystemExit(0)
+
+    if not sent_kill and seen_pids and time.monotonic() > deadline - 10:
+        sent_kill = True
+        for pid in sorted(seen_pids):
+            if os.path.exists(f"/proc/{pid}"):
+                print(f"Force-stopping pid {pid}")
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    time.sleep(0.5)
+
+if not port_is_bindable(port):
+    print(f"{name} port {port} is still not reusable after stopping old listeners.", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 start_service() {
   local name="$1"
   local cwd="$2"
+  local pid
   shift 2
 
   local log_file="$LOG_DIR/$name.log"
   echo "Starting $name, logging to $log_file"
-  (cd "$cwd" && "$@") >"$log_file" 2>&1 &
-  PIDS+=("$!")
+  if command -v setsid >/dev/null 2>&1; then
+    (cd "$cwd" && exec setsid "$@") >"$log_file" 2>&1 &
+  else
+    (cd "$cwd" && exec "$@") >"$log_file" 2>&1 &
+  fi
+  pid="$!"
+  PIDS+=("$pid")
 }
 
 require_file "$VENV_DIR/bin/activate"
 require_file "$LMCACHE_CONFIG_FILE"
 
+if [ "$REPLACE_EXISTING" = "1" ]; then
+  stop_port_listener "LMCache server" "$LMCACHE_SERVER_PORT"
+  stop_port_listener "vLLM server" "$VLLM_PORT"
+  if [ "$START_FRONTEND" = "1" ]; then
+    stop_port_listener "Streamlit frontend" "$STREAMLIT_PORT"
+  fi
+fi
+
+ensure_port_free "LMCache server" "$LMCACHE_SERVER_HOST" "$LMCACHE_SERVER_PORT"
+ensure_port_free "vLLM server" "0.0.0.0" "$VLLM_PORT"
+if [ "$START_FRONTEND" = "1" ]; then
+  ensure_port_free "Streamlit frontend" "$STREAMLIT_HOST" "$STREAMLIT_PORT"
+fi
+
 mkdir -p "$LOG_DIR"
+if [ "$CLEAR_LMCACHE_STORAGE" = "1" ]; then
+  if [ -z "$LMCACHE_STORAGE_DIR" ] || [ "$LMCACHE_STORAGE_DIR" = "/" ]; then
+    echo "Refusing to clear unsafe LMCache storage directory: $LMCACHE_STORAGE_DIR" >&2
+    exit 1
+  fi
+  echo "Clearing LMCache storage directory: $LMCACHE_STORAGE_DIR"
+  rm -rf "$LMCACHE_STORAGE_DIR"
+fi
 mkdir -p "$LMCACHE_STORAGE_DIR"
 
 # shellcheck source=/dev/null
