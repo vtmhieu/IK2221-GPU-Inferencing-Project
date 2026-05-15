@@ -1,0 +1,11 @@
+request_id,context_id,question,seq_length,context_length,ttft_s,total_latency_s,response_length,response_preview
+0,vllm,What methodology or approach is proposed?,3845,3804,3.5932,4.5449,444,"The methodology proposed is based on PagedAttention, a novel attention mechanism inspired by virtual memory paging. This"
+1,vllm,What is the main contribution of this paper?,3848,3804,0.0399,1.0098,461,"The main contribution of this paper is the introduction of PagedAttention, a novel attention mechanism inspired by virtu"
+2,vllm,What future work do the authors suggest?,3844,3804,0.0346,1.3217,634,The authors suggest that future work could focus on extending the use of paging-inspired memory management to other type
+3,vllm,What are the key performance metrics reported?,3850,3804,0.0417,0.139,61,The key performance metrics reported in the document include:
+4,vllm,What are the key performance metrics reported?,3850,3804,0.0259,0.5474,250,"The key performance metrics reported in the document include throughput improvements over FasterTransformer and Orca, as"
+5,vllm,What are the main limitations mentioned by the authors?,3859,3804,0.0379,0.1467,58,The authors mention three main limitations in LLM serving:
+6,vllm,What methodology or approach is proposed?,3845,3804,0.0258,0.9033,398,"The methodology or approach proposed in the paper is called PagedAttention, which is a novel attention mechanism inspire"
+7,vllm,Summarize the key findings in 2-3 sentences.,3848,3804,0.0337,0.7419,340,"The key findings are that vLLM achieves up to 4× throughput improvements over FasterTransformer and Orca, especially wit"
+8,vllm,What trade-offs does the proposed solution involve?,3855,3804,0.0371,1.2475,531,The proposed solution of PagedAttention involves a trade-off between latency and memory savings. The kernel overhead is 
+9,vllm,What problem does this paper address?,3841,3804,0.0397,0.6776,278,"This paper addresses the problem of memory management in large language model (LLM) serving. Specifically, it focuses on"

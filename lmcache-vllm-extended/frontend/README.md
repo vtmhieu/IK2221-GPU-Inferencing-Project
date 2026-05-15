@@ -131,7 +131,7 @@ For the following questions let's test the following cache sizes (they are measu
 Measures how latency changes as the combined context + question length increases.
 
 ```bash
-python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1_0size.png --cold-run
+python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1_0size.png 
 ```
 # IMPORTANT Regarding the naming of the file, put the cache size before size in the filenaming
  e.g. cache of 3 gb file is called graph_q1_30size.png

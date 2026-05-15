@@ -1,0 +1,94 @@
+request_id,context_id,question,token_length,context_tokens,ttft_s,total_latency_s,response_length,response_preview
+0,osdi24-lee,What methodology or approach is proposed?,808,801,3.1135,3.9699,384,InfiniGen proposes a dynamic KV cache management framework for large language model (LLM) inference systems. The main me
+1,nsdi20-paper-barbette,What is the main contribution of this paper?,669,660,0.0789,1.0262,477,"The main contribution of this paper is the introduction of CHEETAH, a novel load balancer that guarantees per-connection"
+2,ServerlessLLM_summary,What are the practical implications of this work?,610,601,0.0706,0.1691,62,The practical implications of this work include the following:
+3,sigcomm2023_janus,What are the main limitations mentioned by the authors?,767,757,0.0902,0.256,107,The authors mention that the main limitations of the traditional expert-centric communication paradigm are:
+4,SplitRPC-sigmetrics23,Does the authors provide metrics about latency?,792,784,0.0913,0.721,251,"Yes, the authors provide metrics about latency. Specifically, they state that SplitRPC significantly outperforms gRPC-VM"
+5,cacheblend,Describe the experimental setup used in this paper.,925,916,0.0897,1.2841,486,"The experimental setup used in this paper involved evaluating CacheBlend on several datasets and models, including Mistr"
+6,osdi24-agrawal,"Provide a structured summary of this paper. Your summary should include:
+    - Research motivation
+    - Problem statement
+    - System architecture or methodology
+    - Experimental setup
+    - Main findings
+    - Limitations
+    - Suggested future work
+
+    Use concise technical language and organize the response with bullet points.",950,885,0.0923,0.1798,23,### Research Motivation
+7,click,"Compare the approach proposed in this paper with previous approaches discussed by the authors. Focus specifically on:
+    - Architectural differences
+    - Performance trade-offs
+    - Scalability considerations
+    - Latency implications
+    - Resource efficiency
+
+    If numerical metrics are available, include them in the comparison.",734,673,0.1808,2.2651,1121,"Unfortunately, the provided text does not contain any numerical metrics to compare the performance of Click with previou"
+8,sigcomm24-crux,"Read the paper carefully and explain the primary technical contribution. Include:
+    1. The core problem being addressed
+    2. The proposed solution
+    3. Why the proposed approach is different from prior work
+    4. The most important experimental result
+    Keep the response under 200 words",968,903,0.0888,0.9087,420,The primary technical contribution of the paper is the introduction of GPU-Efficient Communication Scheduling (Crux) for
+9,osdi24-sun-biao,"You are an expert researcher in distributed systems, machine learning systems, and large-scale inference infrastructure. Carefully read the provided paper and produce a comprehensive technical review intended for an audience of systems researchers and ML infrastructure engineers.
+
+Your review should contain the following sections:
+
+1. Executive Summary
+Provide a concise overview of the paper’s goals, contributions, and findings.
+
+2. Research Motivation
+Explain the broader systems or machine learning problem being addressed. Discuss why this problem matters in practice, including scalability, latency, throughput, reliability, or efficiency concerns.
+
+3. Technical Contributions
+Describe the main innovations proposed by the paper. For each contribution:
+- Explain the idea clearly
+- Describe how it differs from prior work
+- Explain why it is technically important
+
+4. System Architecture and Design
+Provide a detailed explanation of the architecture described in the paper. Include:
+- Major system components
+- Data flow
+- Scheduling or orchestration mechanisms
+- Memory management strategies
+- Network communication patterns
+- Inference or training pipeline details if applicable
+
+5. Experimental Methodology
+Describe the evaluation setup in detail:
+- Hardware configuration
+- Cluster or distributed setup
+- Datasets and benchmarks
+- Baselines used for comparison
+- Metrics collected
+- Ablation studies
+- Reproducibility considerations
+
+6. Performance Analysis
+Analyze all reported performance metrics. Include discussion of:
+- Latency
+- Throughput
+- Scalability
+- Resource utilization
+- Cost efficiency
+- Accuracy or quality trade-offs
+- Tail latency or percentile metrics if available
+
+7. Comparison with Prior Work
+Compare this paper against prior approaches mentioned in the related work section. Discuss:
+- Advantages
+- Limitations
+- Novelty
+- Engineering complexity
+- Deployment practicality
+
+8. Limitations and Trade-offs
+Explain all limitations acknowledged by the authors, as well as any additional weaknesses you identify.
+
+9. Future Research Directions
+Summarize future work proposed by the authors and suggest additional research directions that could extend this work.
+
+10. Final Assessment
+Provide an overall technical assessment of the paper’s significance, strengths, weaknesses, and likely practical impact.
+
+Your response should be highly detailed, technically rigorous, and approximately 1200-1500 words long.",1336,876,0.1214,0.1601,21,### Executive Summary
