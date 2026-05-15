@@ -9,6 +9,5 @@ build/
 .eggs/
 *.so
 .DS_Store
-lmcache-vllm-extended/frontend/results/*
 .run_logs/
 
