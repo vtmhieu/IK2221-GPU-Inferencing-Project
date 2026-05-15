@@ -118,22 +118,24 @@ python request_generator.py --data-dir data/ --mode sequential
 # Repeated mode — same context
 python request_generator.py --data-dir data/ --mode repeated --context-id vllm --num-requests 10
 ```
+For the following questions let's test the following cache sizes (they are measured in GB)
+- 0.0
+- 0.5 
+- 1.0 
+- 2.0
+- 3.0
+- 4.0
 
 ### Q1 — Latency vs Sequence Length
 
 Measures how latency changes as the combined context + question length increases.
 
 ```bash
-python benchmark.py --mode increasing_length -o results/q1_seqlen.csv
+python benchmark.py --mode increasing_length -o results/q1_seqlen.csv -g results/graph_q1_0size.png --cold-run
 ```
-
-To avoid reusing LMCache entries from previous benchmark runs without restarting
-the services, add `--cold-run`:
-
-```bash
-python benchmark.py --mode increasing_length --cold-run -o results/q1_seqlen.csv
-```
-
+# IMPORTANT Regarding the naming of the file, put the cache size before size in the filenaming
+ e.g. cache of 3 gb file is called graph_q1_30size.png
+      cache of 0.5 gb file is called graph_q1_05size.png
 The graph result is saved as a csv if we specify the output with -g
 
 ### Q2 — KV Cache Reuse (Re-feeding Old Requests)
