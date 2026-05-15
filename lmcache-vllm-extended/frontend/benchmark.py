@@ -215,6 +215,10 @@ def graph_q1(csv_path: str, output_path: str):
         print("No valid Q1 data found to plot.")
         return
 
+    # This is to eliminate the first outlier, let it commented if you're not running a test for design purposes
+    # points = points[1:]
+
+
     # Sort by token length so the line plot is monotonic in x.
     points.sort(key=lambda item: item[0])
     token_lengths, ttft = zip(*points)
