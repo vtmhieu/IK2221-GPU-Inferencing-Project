@@ -1,0 +1,46 @@
+request_id,context_id,question,token_length,context_tokens,ttft_s,total_latency_s,response_length,response_preview
+0,osdi24-sun-biao,What future work do the authors suggest?,884,876,0.0515,1.3555,703,The authors suggest that future work could involve further optimization of the migration process to reduce latency even 
+1,osdi24-sun-biao,What future work do the authors suggest?,884,876,0.0314,1.1311,636,"The authors suggest that future work could involve further optimization of the Llumnix system, such as improving the eff"
+2,osdi24-sun-biao,What future work do the authors suggest?,884,876,0.1015,0.2023,55,The authors suggest future work in the following areas:
+3,osdi24-sun-biao,What future work do the authors suggest?,884,876,0.0282,0.1465,58,The authors suggest several future directions for Llumnix:
+4,osdi24-sun-biao,What future work do the authors suggest?,884,876,0.1106,1.1091,523,"The authors suggest future work on improving the scalability and fault tolerance of Llumnix. Specifically, they note tha"
+5,osdi24-sun-biao,What are the key performance metrics reported?,884,876,0.0931,0.1908,61,The key performance metrics reported in the document include:
+6,osdi24-sun-biao,What are the key performance metrics reported?,884,876,0.0917,0.1898,57,The key performance metrics reported in the document are:
+7,osdi24-sun-biao,What are the key performance metrics reported?,884,876,0.1017,0.1992,57,The key performance metrics reported in the document are:
+8,osdi24-sun-biao,What are the key performance metrics reported?,884,876,0.0266,0.125,61,The key performance metrics reported in the document include:
+9,osdi24-sun-biao,What are the key performance metrics reported?,884,876,0.0275,0.1253,61,The key performance metrics reported in the document include:
+10,osdi24-sun-biao,What methodology or approach is proposed?,883,876,0.122,0.8121,348,"The methodology or approach proposed in the document is called Llumnix, which is a dynamic scheduling system for Large L"
+11,osdi24-sun-biao,What methodology or approach is proposed?,883,876,0.1071,1.219,493,"The methodology proposed in the paper is a dynamic scheduling system for Large Language Model (LLM) inference, called Ll"
+12,osdi24-sun-biao,What methodology or approach is proposed?,883,876,0.069,0.9971,407,The proposed methodology or approach is the dynamic scheduling system for Large Language Model inference (LLM inference)
+13,osdi24-sun-biao,What methodology or approach is proposed?,883,876,0.0676,0.7143,303,The methodology or approach proposed in the paper is a dynamic scheduling system for Large Language Model (LLM) inferenc
+14,osdi24-sun-biao,What methodology or approach is proposed?,883,876,0.0349,1.2384,544,"The methodology or approach proposed in the paper ""Llumnix: Dynamic Scheduling for Large Language Model Serving"" is a dy"
+15,SplitRPC-sigmetrics23,What are the main limitations mentioned by the authors?,794,784,0.0989,1.0012,407,The authors mention a few limitations in their paper. One of the main limitations is that the design of SplitRPC is opti
+16,SplitRPC-sigmetrics23,What are the main limitations mentioned by the authors?,794,784,0.0555,0.8851,439,"The authors mention that traditional RPC mechanisms assume CPU-based execution, but ML inference workloads increasingly "
+17,SplitRPC-sigmetrics23,What are the main limitations mentioned by the authors?,794,784,0.0882,0.7169,351,"The authors mention that traditional RPC mechanisms assume CPU-based execution, which leads to significant overhead in M"
+18,SplitRPC-sigmetrics23,What are the main limitations mentioned by the authors?,794,784,0.0258,0.4412,206,The authors mention that existing SmartNIC-based solutions optimize data movement but not orchestration. This is a limit
+19,SplitRPC-sigmetrics23,What are the main limitations mentioned by the authors?,794,784,0.1074,0.2049,53,The authors mention a few limitations in their paper:
+20,SplitRPC-sigmetrics23,What methodology or approach is proposed?,791,784,0.0322,1.8948,887,"The methodology proposed in the document is the SplitRPC framework, which is designed to optimize the performance of ML "
+21,SplitRPC-sigmetrics23,What methodology or approach is proposed?,791,784,0.0289,1.5247,696,"The proposed methodology or approach in the document is called SplitRPC, which is a high-performance RPC stack designed "
+22,SplitRPC-sigmetrics23,What methodology or approach is proposed?,791,784,0.0261,0.8863,438,The methodology proposed in the document is the design and implementation of a new RPC stack called SplitRPC. The author
+23,SplitRPC-sigmetrics23,What methodology or approach is proposed?,791,784,0.0275,1.0316,475,"The methodology or approach proposed in the document is called SplitRPC, which is a high-performance RPC stack designed "
+24,SplitRPC-sigmetrics23,What methodology or approach is proposed?,791,784,0.1274,0.4227,150,The methodology proposed in the SplitRPC paper is a high-performance RPC stack designed for ML inference serving. The ke
+25,SplitRPC-sigmetrics23,What is the motivation behind this research?,792,784,0.0308,0.6369,324,The motivation behind this research is to address the growing cost of RPC overhead in ML inference serving. The shrinkin
+26,SplitRPC-sigmetrics23,What is the motivation behind this research?,792,784,0.0409,0.6763,353,The motivation behind this research is to address the growing cost of RPC overhead in ML inference serving. The shrinkin
+27,SplitRPC-sigmetrics23,What is the motivation behind this research?,792,784,0.0277,0.8988,479,The motivation behind this research is to address the growing cost of RPC overhead in ML inference serving. Traditional 
+28,SplitRPC-sigmetrics23,What is the motivation behind this research?,792,784,0.0277,0.662,353,The motivation behind this research is to address the growing cost of RPC overhead in ML inference serving. The shrinkin
+29,SplitRPC-sigmetrics23,What is the motivation behind this research?,792,784,0.0276,0.8321,407,"The motivation behind this research is to address the growing cost of RPC overhead in ML inference serving, specifically"
+30,ServerlessLLM_summary,Summarize the key findings in 2-3 sentences.,614,601,0.1409,0.8109,357,"ServerlessLLM is a distributed system that leverages GPU server storage hierarchies to store model checkpoints locally, "
+31,ServerlessLLM_summary,Summarize the key findings in 2-3 sentences.,614,601,0.125,0.7246,320,ServerlessLLM addresses the challenges of serverless inference for large language models by leveraging GPU server storag
+32,ServerlessLLM_summary,Summarize the key findings in 2-3 sentences.,614,601,0.027,1.1573,562,ServerlessLLM is a distributed system for low-latency serverless inference of Large Language Models (LLMs) that leverage
+33,ServerlessLLM_summary,Summarize the key findings in 2-3 sentences.,614,601,0.0284,0.6978,332,ServerlessLLM is a distributed system designed for low-latency serverless inference of large language models (LLMs). It 
+34,ServerlessLLM_summary,Summarize the key findings in 2-3 sentences.,614,601,0.0308,0.8048,398,ServerlessLLM is a distributed system designed for low-latency serverless inference of large language models (LLMs). It 
+35,ServerlessLLM_summary,What trade-offs does the proposed solution involve?,610,601,0.0332,0.3038,136,"The proposed solution, ServerlessLLM, involves several trade-offs to achieve its performance and efficiency. The key tra"
+36,ServerlessLLM_summary,What trade-offs does the proposed solution involve?,610,601,0.0271,0.4284,180,"The proposed solution, ServerlessLLM, involves several trade-offs to optimize low-latency serverless inference of large "
+37,ServerlessLLM_summary,What trade-offs does the proposed solution involve?,610,601,0.0269,0.9721,476,"The proposed solution, ServerlessLLM, involves several trade-offs. One of the key trade-offs is the need to manage compl"
+38,ServerlessLLM_summary,What trade-offs does the proposed solution involve?,610,601,0.0258,0.4426,191,"The proposed solution, ServerlessLLM, involves several trade-offs to address the challenges of low-latency serverless in"
+39,ServerlessLLM_summary,What trade-offs does the proposed solution involve?,610,601,0.0258,0.2319,91,"The proposed solution, ServerlessLLM, involves several trade-offs. The main trade-offs are:"
+40,ServerlessLLM_summary,What is the main contribution of this paper?,610,601,0.0333,0.448,203,"The main contribution of this paper is the development of ServerlessLLM, a distributed system designed for low-latency s"
+41,ServerlessLLM_summary,What is the main contribution of this paper?,610,601,0.0319,0.4323,190,"The main contribution of this paper is the development of ServerlessLLM, a distributed system for low-latency serverless"
+42,ServerlessLLM_summary,What is the main contribution of this paper?,610,601,0.0245,0.4263,194,"The main contribution of this paper is the development of ServerlessLLM, a distributed system for low-latency serverless"
+43,ServerlessLLM_summary,What is the main contribution of this paper?,610,601,0.0316,0.629,259,"The main contribution of this paper is the development of ServerlessLLM, a distributed system for low-latency serverless"
+44,ServerlessLLM_summary,What is the main contribution of this paper?,610,601,0.0751,0.4755,194,"The main contribution of this paper is the development of ServerlessLLM, a distributed system for low-latency serverless"
