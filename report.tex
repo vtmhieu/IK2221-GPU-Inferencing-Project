@@ -9,6 +9,7 @@
 \usepackage{placeins} % provides \FloatBarrier to prevent floats from passing barriers
 \usepackage{booktabs} % for professional-looking tables
 \usepackage{titlesec} % for customizing section headings
+\usepackage{subcaption} % for subfigures
 
 % Customize section spacing for better visual separation
 \titlespacing*{\section}{0pt}{12pt plus 4pt minus 2pt}{8pt plus 2pt minus 2pt}
@@ -26,8 +27,55 @@
 
 
 \section{Task 1}
+\subsection{Question 1: Latency vs. Sequence Length}
+% TODO: Add analysis for Q1 based on your Q1 data
 
+\subsection{Question 2: KV Cache Reuse and Cache Size Impact}
+\subsubsection*{Evaluation Methodology}
+To rigorously evaluate the latency improvements and cache sensitivity, we configured the LMCache-extended backend with varying levels of \texttt{gpu\_memory\_utilization} (ranging from 0.001 to 3.0). This parameter directly restricts or expands the available KV cache capacity. We then used a custom request generator running in a repeated sequence mode, querying the model with specific document contexts and repeating different questions within the same context before switching to a completely new context. 
 
+We recorded the Time To First Token (TTFT) for every request. By plotting the sequence of requests, we can visually identify cache misses (when a new context is loaded, requiring full prompt evaluation) and cache hits (when a new question is asked for a previously cached context). We calculated the average TTFT for hits and misses across each configuration to observe caching effectiveness.
+
+\subsubsection*{Results and Analysis}
+As shown in our timeline visualizations (Figure~\ref{fig:q2_timelines}), feeding an old request to the model significantly reduces latency, provided the cache is large enough. The TTFT for cache hits (green markers) drops noticeably compared to cache misses (red markers), confirming that reusing the KV cache heavily optimizes inference time.
+
+Furthermore, we analyzed how the size of the local cache affects these results. When the local cache size is extremely small (e.g., utilization = 0.001), the cache is unable to retain previously seen requests. This results in frequent evictions, causing identical latencies for both hits and misses, as the system is forced into recomputation. 
+
+As the cache size increases (e.g., utilization $\ge$ 0.4), the system successfully stores the KV pairs. The gap between hit latency and miss latency widens significantly, showcasing the effectiveness of an adequately sized local cache. This overall trend is aggregated and clearly visible in Figure~\ref{fig:q2_summary}.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q2_new/q2_util_0.001.png}
+        \caption{Util = 0.001 (Frequent Evictions)}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q2_new/q2_util_0.1.png}
+        \caption{Util = 0.1 (Partial Caching)}
+    \end{subfigure}
+    
+    \vspace{0.3cm}
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q2_new/q2_util_0.8.png}
+        \caption{Util = 0.8 (Stable Caching)}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q2_new/q2_util_3.0.png}
+        \caption{Util = 3.0 (Oversized Cache)}
+    \end{subfigure}
+    \caption{Timeline visualizations of TTFT across varying GPU memory utilizations. At extremely low utilization, the cache size is insufficient, causing hit and miss latencies to converge. At higher utilizations, cache hits show distinctly lower TTFT.}
+    \label{fig:q2_timelines}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{lmcache-vllm-extended/frontend/results/q2_new_summary.png}
+    \caption{Impact of GPU memory utilization (cache size) on Average TTFT. The gap between misses and hits demonstrates caching efficiency.}
+    \label{fig:q2_summary}
+\end{figure}
+
+\subsection{Question 3: Impact of Request Diversity}
+% TODO: Add analysis for Q3 based on your Q3 data
 
 \section{Task 2}
 
