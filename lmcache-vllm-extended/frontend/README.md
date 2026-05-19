@@ -125,9 +125,9 @@ python benchmark.py --mode random --num-requests 50 -o results/my_experiment.csv
 
 ## Running Benchmarks (Task 2)
 
-Task 2 batching is opt-in. If you do not pass `--batch-size` or `--scheduler`, the benchmark keeps the Task 1 single-request behavior and sends normal OpenAI-compatible `/v2/chat/completions` requests.
+Task 2 batching is opt-in. If you do not pass `--batch-size` or `--scheduler`, the benchmark keeps the Task 1 single-request behavior and sends normal OpenAI-compatible `/v2/chat/completions` requests without LMCache batching headers.
 
-The Task 2 scheduler runs on the backend in `lmcache_vllm/batching/scheduler.py`. The benchmark generates the same flat request list as Task 1, splits it into batches, sends each batch concurrently to `/v2/batch/chat/completions`, and lets the backend reorder requests before forwarding them to the regular vLLM completion handler. The standard `/v2/chat/completions` endpoint remains available for non-batched requests; `/v2/chat/completions/batched` is also available as a direct batched endpoint.
+The Task 2 scheduler runs on the backend in `lmcache_vllm/batching/scheduler.py`. The benchmark generates the same flat request list as Task 1, splits it into batches, sends each batch concurrently to `/v2/chat/completions`, and enables backend batching with the `x-lmcache-batch-size`, `x-lmcache-batch-timeout-ms`, and `x-lmcache-scheduler` headers. Without those headers, the same endpoint forwards directly to the regular vLLM completion handler.
 
 Start the vLLM server before running benchmarks from the frontend folder:
 
@@ -138,7 +138,7 @@ source ../../venv/bin/activate
 
 ### Baseline Batch Order
 
-Runs batched input through the backend batch endpoint without reordering. Use this as the Task 2 baseline.
+Runs batched input through the backend scheduler without reordering. Use this as the Task 2 baseline.
 
 ```bash
 python benchmark.py --mode random --num-requests 40 \

@@ -12,15 +12,13 @@ class ChatSession:
         ip,
         port,
         context_separator="###",
-        use_batch_endpoint=False,
+        use_batching=False,
         batch_size=1,
         scheduler="none",
         batch_timeout_ms=50,
     ):
         openai_api_key = "EMPTY"
         openai_api_base = f"http://{ip}:{port}/v2"
-        if use_batch_endpoint:
-            openai_api_base = f"{openai_api_base}/batch"
 
         self.client = client = OpenAI(
             # defaults to os.environ.get("OPENAI_API_KEY")
@@ -36,7 +34,7 @@ class ChatSession:
         self.final_context = ""
         self.context_separator = context_separator
         self.extra_headers = {}
-        if use_batch_endpoint:
+        if use_batching:
             self.extra_headers = {
                 "x-lmcache-batch-size": str(max(1, batch_size)),
                 "x-lmcache-scheduler": scheduler,

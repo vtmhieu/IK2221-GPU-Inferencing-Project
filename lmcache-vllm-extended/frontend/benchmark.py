@@ -57,7 +57,7 @@ def run_single_request(
     port: int,
     request: Request,
     system_prompt: str = SYSTEM_PROMPT,
-    use_batch_endpoint: bool = False,
+    use_batching: bool = False,
     batch_size: int = 1,
     scheduler_strategy: str = "none",
     batch_timeout_ms: int = 50,
@@ -74,7 +74,7 @@ def run_single_request(
     session = chat_session.ChatSession(
         ip,
         port,
-        use_batch_endpoint=use_batch_endpoint,
+        use_batching=use_batching,
         batch_size=batch_size,
         scheduler=scheduler_strategy,
         batch_timeout_ms=batch_timeout_ms,
@@ -212,7 +212,7 @@ def run_benchmark_batches(
     batch_timeout_ms: int = 50,
     verbose: bool = True,
 ) -> List[dict]:
-    """Run request batches through the backend Task 2 scheduler endpoint."""
+    """Run request batches through the header-enabled Task 2 scheduler."""
     results = []
     total_requests = sum(len(batch) for batch in batches)
     total_start = time.perf_counter()
