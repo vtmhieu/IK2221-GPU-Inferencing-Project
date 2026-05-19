@@ -253,6 +253,54 @@ python benchmark.py --mode random-extended --seed 42 --num-requests 40 \
 
 In the CSVs, use `context_tokens` and `token_length` to separate shorter and longer requests. Report whether grouped scheduling helps more for longer contexts, since reusing a large context can avoid more repeated KV-cache work.
 
+## Running Benchmarks (Task 3)
+
+Task 3 RAG is enabled with `--mode rag`. In this mode the benchmark keeps the true `context_id` only for accuracy scoring, but it does not send the true context to the model. The backend retrieves the most similar document, rewrites the request with that context, and stores retrieval metadata for the benchmark.
+
+### Retrieval Accuracy and Overhead
+
+```bash
+python benchmark.py --mode rag --seed 42 --num-requests 30 \
+  --rag-document-set base \
+  -o results/task3_rag_base.csv
+```
+
+Use `rag_correct` to compute retrieval accuracy, and compare `rag_retrieval_time_s` with `ttft_s` and `total_latency_s` to quantify retrieval overhead.
+
+### Database Size Scaling
+
+Compare the base paper summaries with the larger database that also includes `additionaldata/`:
+
+```bash
+python benchmark.py --mode rag --seed 42 --num-requests 30 \
+  --rag-document-set base \
+  -o results/task3_rag_docset_base.csv
+
+python benchmark.py --mode rag --seed 42 --num-requests 30 \
+  --rag-document-set all \
+  -o results/task3_rag_docset_all.csv
+```
+
+Report how `rag_document_count` affects accuracy and response time.
+
+### RAG Plus Scheduler
+
+Run the same RAG workload with and without grouped scheduling. The backend scheduler groups by the RAG-predicted document ID.
+
+```bash
+python benchmark.py --mode rag --seed 42 --num-requests 40 \
+  --rag-document-set base \
+  --batch-size 8 --scheduler none \
+  -o results/task3_rag_batch8_none.csv
+
+python benchmark.py --mode rag --seed 42 --num-requests 40 \
+  --rag-document-set base \
+  --batch-size 8 --scheduler grouped \
+  -o results/task3_rag_batch8_grouped.csv
+```
+
+Use these paired runs while sweeping local cache size to answer how RAG classification and scheduling interact with KV cache reuse.
+
 ### Full CLI Options
 
 ```bash
@@ -270,6 +318,7 @@ python benchmark.py --help
 | `--num-per-context` | `3`         | Requests per context (sequential mode)       |
 | `--batch-size`      | `1`         | Task 2 batch size; `1` keeps Task 1 behavior |
 | `--scheduler`       | `none`      | Task 2 scheduler: `none` or `grouped`        |
+| `--rag-document-set` | `base`      | Task 3 RAG documents: base, extended, or all |
 | `--context-id`      | _(first)_   | Specific context for repeated mode           |
 | `-o`, `--output`    | auto        | Output CSV path                              |
 | `-g`,               | auto        | Output graph path                            |
@@ -305,6 +354,12 @@ Results are saved as CSV with the following columns:
 | `total_latency_s`    | Total response time (seconds)              |
 | `response_length`    | Response character count                   |
 | `response_preview`   | First 120 chars of model response          |
+| `predicted_context_id` | Context selected by Task 3 RAG             |
+| `rag_correct`          | Whether RAG matched the true context ID    |
+| `rag_similarity`       | Similarity score for the retrieved context |
+| `rag_retrieval_time_s` | Backend retrieval time in seconds          |
+| `rag_document_count`   | Number of documents searched by RAG        |
+| `rag_document_set`     | RAG database selection for the run         |
 | `batch_id`           | Task 2 batch index, blank for Task 1 path  |
 | `batch_size`         | Number of requests in the batch            |
 | `original_position`  | Request position inside the incoming batch |

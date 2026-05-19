@@ -1,9 +1,10 @@
-from openai import OpenAI
-import threading
-import sys
-from io import StringIO
+import json
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
+from openai import OpenAI
 
 
 class ChatSession:
@@ -16,9 +17,13 @@ class ChatSession:
         batch_size=1,
         scheduler="none",
         batch_timeout_ms=50,
+        use_rag=False,
+        rag_request_id=None,
+        rag_document_set="base",
     ):
         openai_api_key = "EMPTY"
         openai_api_base = f"http://{ip}:{port}/v2"
+        self.openai_api_base = openai_api_base
 
         self.client = client = OpenAI(
             # defaults to os.environ.get("OPENAI_API_KEY")
@@ -35,11 +40,19 @@ class ChatSession:
         self.context_separator = context_separator
         self.extra_headers = {}
         if use_batching:
-            self.extra_headers = {
+            self.extra_headers.update({
                 "x-lmcache-batch-size": str(max(1, batch_size)),
                 "x-lmcache-scheduler": scheduler,
                 "x-lmcache-batch-timeout-ms": str(max(1, batch_timeout_ms)),
-            }
+            })
+        if use_rag:
+            self.extra_headers.update({
+                "x-lmcache-rag": "true",
+                "x-lmcache-rag-docset": rag_document_set,
+            })
+            if rag_request_id is not None:
+                self.extra_headers["x-lmcache-rag-request-id"] = str(rag_request_id)
+        self.rag_request_id = rag_request_id
 
 
     def set_context(self, context_strings):
@@ -78,7 +91,6 @@ class ChatSession:
             extra_headers=self.extra_headers or None,
         )
 
-        output_buffer = StringIO()
         server_message = []
         for chunk in chat_completion:
             chunk_message = chunk.choices[0].delta.content
@@ -90,3 +102,15 @@ class ChatSession:
 
         self.on_server_message("".join(server_message))
         yield f"\n\n(Response delay: {end - start:.2f} seconds)"
+
+    def get_rag_metrics(self):
+        if self.rag_request_id is None:
+            return None
+
+        escaped_request_id = urllib.parse.quote(str(self.rag_request_id), safe="")
+        url = f"{self.openai_api_base}/rag/metrics/{escaped_request_id}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            return None

@@ -57,7 +57,12 @@ def _message_content(message: Any) -> Any:
     return getattr(message, "content", None)
 
 
-def _context_key(request: ChatCompletionRequest) -> str:
+def _context_key(item: QueuedChatCompletion) -> str:
+    rag_context_id = getattr(item.raw_request.state, "rag_context_id", None)
+    if rag_context_id:
+        return str(rag_context_id)
+
+    request = item.request
     for message in request.messages:
         if _message_role(message) == "user":
             content = _content_to_text(_message_content(message))
@@ -74,5 +79,5 @@ def schedule_batch(
 
     return sorted(
         batch,
-        key=lambda item: (_context_key(item.request), item.arrival_order),
+        key=lambda item: (_context_key(item), item.arrival_order),
     )

@@ -18,6 +18,7 @@ Usage:
 
 import os
 import random
+import re
 from dataclasses import dataclass
 from typing import List
 
@@ -147,6 +148,51 @@ Provide an overall technical assessment of the paper’s significance, strengths
 Your response should be highly detailed, technically rigorous, and approximately 1200-1500 words long."""
 ]
 
+RAG_STOPWORDS = {
+    "about",
+    "after",
+    "approach",
+    "based",
+    "between",
+    "could",
+    "document",
+    "during",
+    "evaluation",
+    "paper",
+    "performance",
+    "provides",
+    "request",
+    "research",
+    "results",
+    "section",
+    "system",
+    "their",
+    "these",
+    "through",
+    "using",
+    "which",
+    "would",
+}
+
+RAG_QUESTION_TEMPLATES = [
+    (
+        "Which course paper is most relevant to {keywords}? "
+        "Use the retrieved document to summarize its main contribution."
+    ),
+    (
+        "Find the paper related to {keywords}. "
+        "What problem does that paper address?"
+    ),
+    (
+        "I am looking for the summarized paper about {keywords}. "
+        "Explain the key idea from the matching document."
+    ),
+    (
+        "Based on the available paper summaries, answer a question about "
+        "{keywords}: what is the main system or method described?"
+    ),
+]
+
 
 DEFAULT_MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
 
@@ -239,6 +285,33 @@ class RequestGenerator:
         """Return the list of all loaded context IDs."""
         return list(self.extended_contexts.keys())
 
+    def _contexts_for_document_set(self, document_set: str) -> dict[str, str]:
+        if document_set == "base":
+            return self.contexts
+        if document_set == "extended":
+            return self.extended_contexts
+        if document_set == "all":
+            return {**self.contexts, **self.extended_contexts}
+        raise ValueError("document_set must be one of: base, extended, all")
+
+    def _make_rag_question(self, context_id: str, context_text: str) -> str:
+        title = context_id.replace("_", " ").replace("-", " ")
+        words = re.findall(r"[A-Za-z][A-Za-z0-9-]{4,}", context_text.lower())
+        candidates = []
+        seen = set()
+        for word in words:
+            normalized = word.strip("-")
+            if normalized in RAG_STOPWORDS or normalized in seen:
+                continue
+            seen.add(normalized)
+            candidates.append(normalized)
+            if len(candidates) >= 12:
+                break
+
+        keywords = self.rng.sample(candidates, min(4, len(candidates)))
+        keyword_text = ", ".join(keywords) if keywords else title
+        return self.rng.choice(RAG_QUESTION_TEMPLATES).format(keywords=keyword_text)
+
     @staticmethod
     def generate_batches(
         requests: List[Request],
@@ -282,6 +355,44 @@ class RequestGenerator:
             )
 
         # Shuffle to maximize context diversity between consecutive requests
+        self.rng.shuffle(requests)
+        return requests
+
+    def generate_rag(
+        self,
+        num_requests: int = 50,
+        document_set: str = "base",
+    ) -> List[Request]:
+        """
+        Generate context-free prompts for Task 3 RAG evaluation.
+
+        The returned requests keep the true context_id for accuracy scoring,
+        but the question does not include the full document context.
+        """
+        contexts = self._contexts_for_document_set(document_set)
+        context_ids = list(contexts.keys())
+        if not context_ids:
+            raise ValueError(f"No contexts available for RAG document_set '{document_set}'")
+        requests = []
+
+        for i in range(num_requests):
+            ctx_id = self.rng.choice(context_ids)
+            ctx_text = contexts[ctx_id]
+            question = self._make_rag_question(ctx_id, ctx_text)
+            context_tokens = self._count_tokens(ctx_text)
+            question_tokens = self._count_tokens(question)
+            requests.append(
+                Request(
+                    request_id=i,
+                    context_id=ctx_id,
+                    context_text=ctx_text,
+                    question=question,
+                    context_tokens=context_tokens,
+                    question_tokens=question_tokens,
+                    token_length=context_tokens + question_tokens,
+                )
+            )
+
         self.rng.shuffle(requests)
         return requests
 
