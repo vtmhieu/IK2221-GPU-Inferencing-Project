@@ -18,7 +18,7 @@
 
 %opening
 \title{Report 4: IK2221 LLM inference project}
-\author{Group X: insert members}
+\author{Group 9: Riccardo Fragale, insert names}
 \date{\today{}}
 
 \begin{document}
@@ -28,11 +28,104 @@
 
 \section{Task 1}
 \subsection{Question 1: Latency vs. Sequence Length}
-% TODO: Add analysis for Q1 based on your Q1 data
+\subsubsection*{Evaluation methodology}
+We decided to evaluate the impact of the sequence length on the prefill time (and in particular to the TTFT) with varying KV cache size (ranging from 0 to 4.0).
+We recorded TTFT for every request and the combined sequence length of the context of the question and the length of the prompt.
+The expectation is that TFFT grows sort of quadratically as the sequence length increases.
+Due to a cold start of the model we also saw that the first request arriving was particularly slow (ruining all metrics and averages), while the next ones have a similar pattern
+even though they involve a context switch. That's why we will show below some graphs regarding TTFT vs sequence length both including and not including the first request in order
+to better show what we found out.
+The benchmark provided (that could be added with --increasing-length ) includes ten random questions about the different contexts, done in a way such that they have an increasing sequence length.
+This happens because the questions are selected inside three difference batches of prompts of different size.
+The first batch includes some short and general prompts while the other ones include medium size and large size prompts.
+
+\subsubsection*{Results and analysis}
+ In order not to avoid a list of 15 graphs we decide to include here the ones we believe are more meaningful but you can explore all the logs and all the graphs of our tests inside the folders
+  \path{lmcache-vllm-extended\docker\results\q1} and also the \path{lmcache-vllm-extended\docker\results\q1_polished}. The polished ones include the graphs without 
+ the first request that, as said in the previous paragraph, ruins all averages and metrics and we haven't figured out why it is particularly slow.
+ Let's first see what happens with cache size = 0 (so the model is not caching KV chunks actually).
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1/graph_q1_0size.png}
+        \caption{Normal logs (q1)}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1_polished/graph_q1_0size.png}
+        \caption{Polished logs (q1\_polished)}
+    \end{subfigure}
+    \caption{TTFT vs. sequence length for cache size = GB}
+    \label{fig:q1_cache0}
+\end{figure}
+
+The reason why we polished is the following:
+\\
+\noindent\textbf{Average TTFT:} 0.4146\,s.
+\\
+\textbf{Average TTFT excluding first request:} 0.0913\,s.
+\\
+Analysing the polished graph it's clear that there is a trend that seems quite quadratic, which is what we expected.
+\\
+Let's go now to cache size = 1.0 GB.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1/graph_q1_10size.png}
+        \caption{Normal logs (q1)}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1_polished/graph_q1_10size.png}
+        \caption{Polished logs (q1\_polished)}
+    \end{subfigure}
+    \caption{TTFT vs. sequence length for cache size = 1 GB}
+    \label{fig:q1_cache10}
+\end{figure}
+
+\noindent\textbf{Average TTFT:} 0.4156\,s.
+\\
+\textbf{Average TTFT excluding first request:} 0.0927\,s.
+\\
+\\
+There is again a linear to quadratic trend. Increasing the cache didn't generate a noticeable improvement in TTFT.
+
+Finally let's try to increase the cache size to 4 GB.
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1/graph_q1_40size.png}
+        \caption{Normal logs (q1)}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q1_polished/graph_q1_40size.png}
+        \caption{Polished logs (q1\_polished)}
+    \end{subfigure}
+    \caption{TTFT vs. sequence length for cache size = 4 GB}
+    \label{fig:q1_cache10}
+\end{figure}
+
+\noindent\textbf{Average TTFT:} 0.4017\,s.
+\\
+\textbf{Average TTFT excluding first request:} 0.1004\,s.
+\\
+
+In this case we also notice that a request was particularly "slow" in the prefill despite it's not so long in terms 
+of size of context and prompt. This indicates that maybe sometimes during a context switch some operations is 
+randomly particularly slow. 
+
+To do a final summary, we have seen that the trend is quadratical (as expected) in almost each cache size as the impact of caching is not particularly relevant
+to reduce TTFT considering the sequence length. We expect to be meaningful regarding the next questions since it is more helpful with
+repeated requests about the same context as the KV remains in the GPu that is running the model.
+
+
+
+ 
+ 
+
 
 \subsection{Question 2: KV Cache Reuse and Cache Size Impact}
 \subsubsection*{Evaluation Methodology}
-To rigorously evaluate the latency improvements and cache sensitivity, we configured the LMCache-extended backend with varying levels of \texttt{gpu\_memory\_utilization} (ranging from 0.001 to 3.0). This parameter directly restricts or expands the available KV cache capacity. We then used a custom request generator running in a repeated sequence mode, querying the model with specific document contexts and repeating different questions within the same context before switching to a completely new context. 
+To rigorously evaluate the latency improvements and cache sensitivity, we configured the LMCache-extended backend with varying levels of \texttt{max\_local\_cache\_size} (ranging from 0.001 to 3.0). This parameter directly restricts or expands the available KV cache capacity. We then used a custom request generator running in a repeated sequence mode, querying the model with specific document contexts and repeating different questions within the same context before switching to a completely new context. 
 
 We recorded the Time To First Token (TTFT) for every request. By plotting the sequence of requests, we can visually identify cache misses (when a new context is loaded, requiring full prompt evaluation) and cache hits (when a new question is asked for a previously cached context). We calculated the average TTFT for hits and misses across each configuration to observe caching effectiveness.
 
@@ -63,14 +156,14 @@ As the cache size increases (e.g., utilization $\ge$ 0.4), the system successful
         \includegraphics[width=\linewidth]{lmcache-vllm-extended/frontend/results/q2_new/q2_util_3.0.png}
         \caption{Util = 3.0 (Oversized Cache)}
     \end{subfigure}
-    \caption{Timeline visualizations of TTFT across varying GPU memory utilizations. At extremely low utilization, the cache size is insufficient, causing hit and miss latencies to converge. At higher utilizations, cache hits show distinctly lower TTFT.}
+    \caption{Timeline visualizations of TTFT across varying GPU KV cache size. At extremely low utilization, the cache size is insufficient, causing hit and miss latencies to converge. At higher utilizations, cache hits show distinctly lower TTFT.}
     \label{fig:q2_timelines}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8\textwidth]{lmcache-vllm-extended/frontend/results/q2_new_summary.png}
-    \caption{Impact of GPU memory utilization (cache size) on Average TTFT. The gap between misses and hits demonstrates caching efficiency.}
+    \caption{Impact of KV cache size on Average TTFT. The gap between misses and hits demonstrates caching efficiency.}
     \label{fig:q2_summary}
 \end{figure}
 
