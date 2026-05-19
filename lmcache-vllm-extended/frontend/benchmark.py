@@ -27,6 +27,7 @@ import sys
 import csv
 import time
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List
 
@@ -45,6 +46,7 @@ SYSTEM_PROMPT = (
     "please answer my question afterwards based on the content in document"
 )
 CONTEXT_SEPARATOR = "###"
+VALID_STRATEGIES = ("none", "grouped")
 
 
 # -----------------------------------------------------------------------
@@ -55,6 +57,12 @@ def run_single_request(
     port: int,
     request: Request,
     system_prompt: str = SYSTEM_PROMPT,
+    use_batching: bool = False,
+    batch_size: int = 1,
+    scheduler_strategy: str = "none",
+    batch_timeout_ms: int = 50,
+    use_rag: bool = False,
+    rag_document_set: str = "base",
 ) -> dict:
     """
     Send one request to the vLLM server and measure timing.
@@ -65,8 +73,20 @@ def run_single_request(
     # doesn't accumulate and skew results.
     # Session creation + context setting happen OUTSIDE the timing block
     # so we only measure actual inference latency.
-    session = chat_session.ChatSession(ip, port)
-    session.set_context([system_prompt, request.context_text])
+    rag_request_id = f"{request.request_id}-{time.time_ns()}" if use_rag else None
+    session = chat_session.ChatSession(
+        ip,
+        port,
+        use_batching=use_batching,
+        batch_size=batch_size,
+        scheduler=scheduler_strategy,
+        batch_timeout_ms=batch_timeout_ms,
+        use_rag=use_rag,
+        rag_request_id=rag_request_id,
+        rag_document_set=rag_document_set,
+    )
+    if not use_rag:
+        session.set_context([system_prompt, request.context_text])
 
     # --- Timing ---
     ttft = None  # time to first token
@@ -85,9 +105,12 @@ def run_single_request(
     total_latency = time.perf_counter() - total_start
 
     response_text = "".join(token_chunks)
+    rag_metrics = (session.get_rag_metrics() or {}) if use_rag else {}
+    predicted_context_id = rag_metrics.get("predicted_context_id")
 
     return {
         "request_id": request.request_id,
+        "rag_request_id": rag_request_id,
         "context_id": request.context_id,
         "question": request.question,
         "token_length": request.token_length,
@@ -96,6 +119,64 @@ def run_single_request(
         "total_latency_s": round(total_latency, 4),
         "response_length": len(response_text),
         "response_preview": response_text[:120].replace("\n", " "),
+        "predicted_context_id": predicted_context_id,
+        "rag_correct": (
+            predicted_context_id == request.context_id
+            if predicted_context_id is not None
+            else None
+        ),
+        "rag_similarity": rag_metrics.get("similarity") if rag_metrics else None,
+        "rag_retrieval_time_s": (
+            rag_metrics.get("retrieval_time_s") if rag_metrics else None
+        ),
+        "rag_document_count": rag_metrics.get("document_count") if rag_metrics else None,
+        "rag_document_set": rag_metrics.get("document_set") or (
+            rag_document_set if use_rag else None
+        ),
+    }
+
+
+def print_rag_result(result: dict) -> None:
+    print(
+        f"          RAG predicted={result['predicted_context_id']}  "
+        f"correct={result['rag_correct']}  "
+        f"retrieval={result['rag_retrieval_time_s']}s"
+    )
+
+
+def print_rag_summary(successful: List[dict]) -> None:
+    rag_rows = [r for r in successful if r.get("rag_correct") is not None]
+    retrieval_times = [
+        r["rag_retrieval_time_s"]
+        for r in successful
+        if r.get("rag_retrieval_time_s") is not None
+    ]
+    if rag_rows:
+        accuracy = sum(1 for r in rag_rows if r["rag_correct"]) / len(rag_rows)
+        print(f"  RAG accuracy:    {accuracy:.2%}")
+    if retrieval_times:
+        avg_retrieval = sum(retrieval_times) / len(retrieval_times)
+        print(f"  Avg retrieval:   {avg_retrieval:.4f}s")
+
+
+def error_result(request: Request, error: Exception, use_rag: bool, rag_document_set: str) -> dict:
+    return {
+        "request_id": request.request_id,
+        "rag_request_id": None,
+        "context_id": request.context_id,
+        "question": request.question,
+        "token_length": request.token_length,
+        "context_tokens": request.context_tokens,
+        "ttft_s": None,
+        "total_latency_s": None,
+        "response_length": 0,
+        "response_preview": f"ERROR: {error}",
+        "predicted_context_id": None,
+        "rag_correct": None,
+        "rag_similarity": None,
+        "rag_retrieval_time_s": None,
+        "rag_document_count": None,
+        "rag_document_set": rag_document_set if use_rag else None,
     }
 
 
@@ -107,6 +188,8 @@ def run_benchmark(
     ip: str = IP,
     port: int = PORT,
     system_prompt: str = SYSTEM_PROMPT,
+    use_rag: bool = False,
+    rag_document_set: str = "base",
     verbose: bool = True,
 ) -> List[dict]:
     """Run all requests sequentially, returning a list of result dicts."""
@@ -123,7 +206,14 @@ def run_benchmark(
             )
 
         try:
-            result = run_single_request(ip, port, req, system_prompt)
+            result = run_single_request(
+                ip,
+                port,
+                req,
+                system_prompt,
+                use_rag=use_rag,
+                rag_document_set=rag_document_set,
+            )
             results.append(result)
 
             if verbose:
@@ -132,19 +222,11 @@ def run_benchmark(
                     f"Total={result['total_latency_s']:.3f}s  "
                     f"Tokens={result['token_length']}"
                 )
+                if use_rag:
+                    print_rag_result(result)
         except Exception as e:
             print(f"  ERROR on request {req.request_id}: {e}", file=sys.stderr)
-            results.append({
-                "request_id": req.request_id,
-                "context_id": req.context_id,
-                "question": req.question,
-                "token_length": req.token_length,
-                "context_tokens": req.context_tokens,
-                "ttft_s": None,
-                "total_latency_s": None,
-                "response_length": 0,
-                "response_preview": f"ERROR: {e}",
-            })
+            results.append(error_result(req, e, use_rag, rag_document_set))
 
     wall_time = time.perf_counter() - total_start
     successful = [r for r in results if r["total_latency_s"] is not None]
@@ -163,6 +245,152 @@ def run_benchmark(
             print(f"  Avg latency:     {avg_latency:.3f}s")
             print(f"  Avg TTFT:        {avg_ttft:.3f}s")
             print(f"  Throughput:      {throughput:.2f} req/s")
+            if use_rag:
+                print_rag_summary(successful)
+        print("=" * 60)
+
+    return results
+
+
+# -----------------------------------------------------------------------
+# Batched benchmark run
+# -----------------------------------------------------------------------
+def _add_batch_metadata(
+    result: dict,
+    batch_id: int,
+    batch_size: int,
+    original_position: int,
+    scheduled_position: int | None,
+    scheduler_strategy: str,
+) -> dict:
+    """Append Task 2 scheduling metadata without changing core fields."""
+    result.update({
+        "batch_id": batch_id,
+        "batch_size": batch_size,
+        "original_position": original_position,
+        "scheduled_position": scheduled_position,
+        "scheduler_strategy": scheduler_strategy,
+    })
+    return result
+
+
+def run_benchmark_batches(
+    batches: List[List[Request]],
+    scheduler_strategy: str = "none",
+    ip: str = IP,
+    port: int = PORT,
+    system_prompt: str = SYSTEM_PROMPT,
+    batch_timeout_ms: int = 50,
+    use_rag: bool = False,
+    rag_document_set: str = "base",
+    verbose: bool = True,
+) -> List[dict]:
+    """Run request batches through the header-enabled Task 2 scheduler."""
+    results = []
+    total_requests = sum(len(batch) for batch in batches)
+    total_start = time.perf_counter()
+    completed = 0
+
+    for batch_id, batch in enumerate(batches):
+        if verbose:
+            print(
+                f"Batch {batch_id + 1}/{len(batches)}  "
+                f"size={len(batch)}  backend_scheduler={scheduler_strategy}",
+                flush=True,
+            )
+
+        with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+            future_to_request = {
+                executor.submit(
+                    run_single_request,
+                    ip,
+                    port,
+                    req,
+                    system_prompt,
+                    True,
+                    len(batch),
+                    scheduler_strategy,
+                    batch_timeout_ms,
+                    use_rag,
+                    rag_document_set,
+                ): (original_position, req)
+                for original_position, req in enumerate(batch)
+            }
+
+            for future in as_completed(future_to_request):
+                completed += 1
+                original_position, req = future_to_request[future]
+                if verbose:
+                    print(
+                        f"[{completed}/{total_requests}]  batch={batch_id}  "
+                        f"orig={original_position}  "
+                        f"ctx={req.context_id:<30}  q=\"{req.question[:50]}...\"",
+                        flush=True,
+                    )
+
+                try:
+                    result = future.result()
+                    results.append(
+                        _add_batch_metadata(
+                            result,
+                            batch_id=batch_id,
+                            batch_size=len(batch),
+                            original_position=original_position,
+                            scheduled_position=None,
+                            scheduler_strategy=f"backend:{scheduler_strategy}",
+                        )
+                    )
+
+                    if verbose:
+                        ttft = result["ttft_s"]
+                        total_latency = result["total_latency_s"]
+                        ttft_display = f"{ttft:.3f}s" if ttft is not None else "n/a"
+                        total_display = (
+                            f"{total_latency:.3f}s"
+                            if total_latency is not None
+                            else "n/a"
+                        )
+                        print(
+                            f"          TTFT={ttft_display}  "
+                            f"Total={total_display}  "
+                            f"Tokens={result['token_length']}"
+                        )
+                        if use_rag:
+                            print_rag_result(result)
+                except Exception as e:
+                    print(f"  ERROR on request {req.request_id}: {e}", file=sys.stderr)
+                    results.append(
+                        _add_batch_metadata(
+                            error_result(req, e, use_rag, rag_document_set),
+                            batch_id=batch_id,
+                            batch_size=len(batch),
+                            original_position=original_position,
+                            scheduled_position=None,
+                            scheduler_strategy=f"backend:{scheduler_strategy}",
+                        )
+                    )
+
+    wall_time = time.perf_counter() - total_start
+    successful = [r for r in results if r["total_latency_s"] is not None]
+
+    if verbose:
+        print("\n" + "=" * 60)
+        print("BATCH BENCHMARK COMPLETE")
+        print(f"  Total batches:   {len(batches)}")
+        print(f"  Total requests:  {total_requests}")
+        print(f"  Scheduler:       backend:{scheduler_strategy}")
+        print(f"  Successful:      {len(successful)}")
+        print(f"  Wall-clock time: {wall_time:.2f}s")
+        if successful:
+            avg_latency = sum(r["total_latency_s"] for r in successful) / len(successful)
+            ttft_entries = [r["ttft_s"] for r in successful if r["ttft_s"]]
+            avg_ttft = sum(ttft_entries) / len(ttft_entries) if ttft_entries else 0
+            throughput = len(successful) / wall_time
+            print(f"  Avg latency:     {avg_latency:.3f}s")
+            print(f"  Avg TTFT:        {avg_ttft:.3f}s")
+            print(f"  Throughput:      {throughput:.2f} req/s")
+            if use_rag:
+                print_rag_summary(successful)
         print("=" * 60)
 
     return results
@@ -173,6 +401,7 @@ def run_benchmark(
 # -----------------------------------------------------------------------
 CSV_FIELDS = [
     "request_id",
+    "rag_request_id",
     "context_id",
     "question",
     "token_length",
@@ -181,6 +410,17 @@ CSV_FIELDS = [
     "total_latency_s",
     "response_length",
     "response_preview",
+    "predicted_context_id",
+    "rag_correct",
+    "rag_similarity",
+    "rag_retrieval_time_s",
+    "rag_document_count",
+    "rag_document_set",
+    "batch_id",
+    "batch_size",
+    "original_position",
+    "scheduled_position",
+    "scheduler_strategy",
 ]
 
 
@@ -238,7 +478,14 @@ def graph_q1(csv_path: str, output_path: str):
 # -----------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="Task 1 Benchmark — measure LLM inference latency & throughput"
+        description="Task 1/2 Benchmark — measure LLM inference latency & throughput",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python benchmark.py --mode random --num-requests 30\n"
+            "  python benchmark.py --mode random --batch-size 8 --scheduler none\n"
+            "  python benchmark.py --mode random --batch-size 8 --scheduler grouped\n"
+        ),
     )
 
     # Server settings
@@ -250,13 +497,23 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
         "--mode",
-        choices=["random", "sequential", "repeated", "random-extended", "increasing_length"],
+        choices=[
+            "random",
+            "sequential",
+            "repeated",
+            "random-extended",
+            "rag",
+            "increasing_length",
+            "same_context_same_question",
+            "same_context_multiple_questions",
+        ],
         default="random",
         help=(
             "random: shuffled contexts (Q3 diversity). "
             "sequential: grouped by context (Q1 token-length). "
             "same_context_same_question: Exact same prompt repeated (Max cache hit). "
             "same_context_multiple_questions: One context, variety of questions. "
+            "rag: context-free prompts resolved by backend RAG. "
             "repeated: same context and request repeated (Q2 cache reuse). Call same context and same question 5 times, then another question 5 times, etc. Afterwards, call another context with the same question 5 times, then another question 5 times, etc. "
             "increasing_length: fixed 10 requests with increasing prompt length across distinct contexts."
         ),
@@ -266,6 +523,33 @@ def main():
     parser.add_argument("--num-questions", type=int, default=5, help="Questions per context")
     parser.add_argument("--num-contexts", type=int, default=3, help="Number of contexts for 'repeated' mode")
     parser.add_argument("--num-per-context", type=int, default=3, help="Requests per context (sequential)")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Task 2 batch size. Default 1 keeps the original Task 1 path.",
+    )
+    parser.add_argument(
+        "--scheduler",
+        choices=VALID_STRATEGIES,
+        default="none",
+        help=(
+            "Task 2 scheduler strategy. "
+            "'none' preserves incoming order; 'grouped' groups by context_id."
+        ),
+    )
+    parser.add_argument(
+        "--batch-timeout-ms",
+        type=int,
+        default=50,
+        help="Maximum backend queue wait for a partial Task 2 batch.",
+    )
+    parser.add_argument(
+        "--rag-document-set",
+        choices=["base", "extended", "all"],
+        default="base",
+        help="Task 3 RAG document set: data/, additionaldata/, or both.",
+    )
 
     # specific contexts or questions
     parser.add_argument("--context-id", default=None, help="Context ID for 'repeated' mode")
@@ -284,6 +568,10 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.batch_size < 1:
+        parser.error("--batch-size must be at least 1")
+    if args.batch_timeout_ms < 1:
+        parser.error("--batch-timeout-ms must be at least 1")
 
     # --- Generate requests ---
     gen = RequestGenerator(data_dir=args.data_dir, seed=args.seed)
@@ -293,6 +581,11 @@ def main():
         requests = gen.generate(args.num_requests)
     elif args.mode == "random-extended":
         requests = gen.generate_extended(args.num_requests)
+    elif args.mode == "rag":
+        requests = gen.generate_rag(
+            num_requests=args.num_requests,
+            document_set=args.rag_document_set,
+        )
     elif args.mode == "sequential":
         requests = gen.generate_sequential(num_per_context=args.num_per_context)
 
@@ -325,7 +618,31 @@ def main():
     print(f"Generated {len(requests)} requests in '{args.mode}' mode\n")
 
     # --- Run benchmark ---
-    results = run_benchmark(requests, ip=args.ip, port=args.port)
+    use_rag = args.mode == "rag"
+    use_batch_mode = args.batch_size > 1 or args.scheduler != "none"
+    if use_batch_mode:
+        batches = gen.generate_batches(requests, args.batch_size)
+        print(
+            f"Task 2 batch mode enabled: {len(batches)} batches, "
+            f"batch_size={args.batch_size}, scheduler={args.scheduler}\n"
+        )
+        results = run_benchmark_batches(
+            batches,
+            scheduler_strategy=args.scheduler,
+            ip=args.ip,
+            port=args.port,
+            batch_timeout_ms=args.batch_timeout_ms,
+            use_rag=use_rag,
+            rag_document_set=args.rag_document_set,
+        )
+    else:
+        results = run_benchmark(
+            requests,
+            ip=args.ip,
+            port=args.port,
+            use_rag=use_rag,
+            rag_document_set=args.rag_document_set,
+        )
 
     # --- Save results ---
     if args.output:
@@ -344,7 +661,13 @@ def main():
             print("Skipping graph output because no CSV was saved.")
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        out_path = f"results/{args.mode}_{timestamp}.csv"
+        if use_batch_mode:
+            out_path = (
+                f"results/{args.mode}_batch{args.batch_size}_"
+                f"{args.scheduler}_{timestamp}.csv"
+            )
+        else:
+            out_path = f"results/{args.mode}_{timestamp}.csv"
         save_results(results, out_path)
         if args.graph_dir:
             graph_path = args.graph_dir
