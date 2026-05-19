@@ -27,12 +27,12 @@ import sys
 import csv
 import time
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List
 
 import chat_session
 import matplotlib.pyplot as plt
-from batch_scheduler import VALID_STRATEGIES, schedule_batch_with_positions
 from request_generator import RequestGenerator, Request
 
 
@@ -46,6 +46,7 @@ SYSTEM_PROMPT = (
     "please answer my question afterwards based on the content in document"
 )
 CONTEXT_SEPARATOR = "###"
+VALID_STRATEGIES = ("none", "grouped")
 
 
 # -----------------------------------------------------------------------
@@ -56,6 +57,10 @@ def run_single_request(
     port: int,
     request: Request,
     system_prompt: str = SYSTEM_PROMPT,
+    use_batch_endpoint: bool = False,
+    batch_size: int = 1,
+    scheduler_strategy: str = "none",
+    batch_timeout_ms: int = 50,
 ) -> dict:
     """
     Send one request to the vLLM server and measure timing.
@@ -66,7 +71,14 @@ def run_single_request(
     # doesn't accumulate and skew results.
     # Session creation + context setting happen OUTSIDE the timing block
     # so we only measure actual inference latency.
-    session = chat_session.ChatSession(ip, port)
+    session = chat_session.ChatSession(
+        ip,
+        port,
+        use_batch_endpoint=use_batch_endpoint,
+        batch_size=batch_size,
+        scheduler=scheduler_strategy,
+        batch_timeout_ms=batch_timeout_ms,
+    )
     session.set_context([system_prompt, request.context_text])
 
     # --- Timing ---
@@ -177,7 +189,7 @@ def _add_batch_metadata(
     batch_id: int,
     batch_size: int,
     original_position: int,
-    scheduled_position: int,
+    scheduled_position: int | None,
     scheduler_strategy: str,
 ) -> dict:
     """Append Task 2 scheduling metadata without changing core fields."""
@@ -197,79 +209,99 @@ def run_benchmark_batches(
     ip: str = IP,
     port: int = PORT,
     system_prompt: str = SYSTEM_PROMPT,
+    batch_timeout_ms: int = 50,
     verbose: bool = True,
 ) -> List[dict]:
-    """Run request batches after applying the selected Task 2 scheduler."""
+    """Run request batches through the backend Task 2 scheduler endpoint."""
     results = []
     total_requests = sum(len(batch) for batch in batches)
     total_start = time.perf_counter()
     completed = 0
 
     for batch_id, batch in enumerate(batches):
-        scheduled_batch = schedule_batch_with_positions(
-            batch,
-            strategy=scheduler_strategy,
-            key="context_id",
-        )
-
         if verbose:
             print(
                 f"Batch {batch_id + 1}/{len(batches)}  "
-                f"size={len(batch)}  scheduler={scheduler_strategy}",
+                f"size={len(batch)}  backend_scheduler={scheduler_strategy}",
                 flush=True,
             )
 
-        for scheduled_position, (original_position, req) in enumerate(scheduled_batch):
-            completed += 1
-            if verbose:
-                print(
-                    f"[{completed}/{total_requests}]  batch={batch_id}  "
-                    f"orig={original_position}  sched={scheduled_position}  "
-                    f"ctx={req.context_id:<30}  q=\"{req.question[:50]}...\"",
-                    flush=True,
-                )
+        with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+            future_to_request = {
+                executor.submit(
+                    run_single_request,
+                    ip,
+                    port,
+                    req,
+                    system_prompt,
+                    True,
+                    len(batch),
+                    scheduler_strategy,
+                    batch_timeout_ms,
+                ): (original_position, req)
+                for original_position, req in enumerate(batch)
+            }
 
-            try:
-                result = run_single_request(ip, port, req, system_prompt)
-                results.append(
-                    _add_batch_metadata(
-                        result,
-                        batch_id=batch_id,
-                        batch_size=len(batch),
-                        original_position=original_position,
-                        scheduled_position=scheduled_position,
-                        scheduler_strategy=scheduler_strategy,
-                    )
-                )
-
+            for future in as_completed(future_to_request):
+                completed += 1
+                original_position, req = future_to_request[future]
                 if verbose:
                     print(
-                        f"          TTFT={result['ttft_s']:.3f}s  "
-                        f"Total={result['total_latency_s']:.3f}s  "
-                        f"Tokens={result['token_length']}"
+                        f"[{completed}/{total_requests}]  batch={batch_id}  "
+                        f"orig={original_position}  "
+                        f"ctx={req.context_id:<30}  q=\"{req.question[:50]}...\"",
+                        flush=True,
                     )
-            except Exception as e:
-                print(f"  ERROR on request {req.request_id}: {e}", file=sys.stderr)
-                results.append(
-                    _add_batch_metadata(
-                        {
-                            "request_id": req.request_id,
-                            "context_id": req.context_id,
-                            "question": req.question,
-                            "token_length": req.token_length,
-                            "context_tokens": req.context_tokens,
-                            "ttft_s": None,
-                            "total_latency_s": None,
-                            "response_length": 0,
-                            "response_preview": f"ERROR: {e}",
-                        },
-                        batch_id=batch_id,
-                        batch_size=len(batch),
-                        original_position=original_position,
-                        scheduled_position=scheduled_position,
-                        scheduler_strategy=scheduler_strategy,
+
+                try:
+                    result = future.result()
+                    results.append(
+                        _add_batch_metadata(
+                            result,
+                            batch_id=batch_id,
+                            batch_size=len(batch),
+                            original_position=original_position,
+                            scheduled_position=None,
+                            scheduler_strategy=f"backend:{scheduler_strategy}",
+                        )
                     )
-                )
+
+                    if verbose:
+                        ttft = result["ttft_s"]
+                        total_latency = result["total_latency_s"]
+                        ttft_display = f"{ttft:.3f}s" if ttft is not None else "n/a"
+                        total_display = (
+                            f"{total_latency:.3f}s"
+                            if total_latency is not None
+                            else "n/a"
+                        )
+                        print(
+                            f"          TTFT={ttft_display}  "
+                            f"Total={total_display}  "
+                            f"Tokens={result['token_length']}"
+                        )
+                except Exception as e:
+                    print(f"  ERROR on request {req.request_id}: {e}", file=sys.stderr)
+                    results.append(
+                        _add_batch_metadata(
+                            {
+                                "request_id": req.request_id,
+                                "context_id": req.context_id,
+                                "question": req.question,
+                                "token_length": req.token_length,
+                                "context_tokens": req.context_tokens,
+                                "ttft_s": None,
+                                "total_latency_s": None,
+                                "response_length": 0,
+                                "response_preview": f"ERROR: {e}",
+                            },
+                            batch_id=batch_id,
+                            batch_size=len(batch),
+                            original_position=original_position,
+                            scheduled_position=None,
+                            scheduler_strategy=f"backend:{scheduler_strategy}",
+                        )
+                    )
 
     wall_time = time.perf_counter() - total_start
     successful = [r for r in results if r["total_latency_s"] is not None]
@@ -279,7 +311,7 @@ def run_benchmark_batches(
         print("BATCH BENCHMARK COMPLETE")
         print(f"  Total batches:   {len(batches)}")
         print(f"  Total requests:  {total_requests}")
-        print(f"  Scheduler:       {scheduler_strategy}")
+        print(f"  Scheduler:       backend:{scheduler_strategy}")
         print(f"  Successful:      {len(successful)}")
         print(f"  Wall-clock time: {wall_time:.2f}s")
         if successful:
@@ -428,6 +460,12 @@ def main():
             "'none' preserves incoming order; 'grouped' groups by context_id."
         ),
     )
+    parser.add_argument(
+        "--batch-timeout-ms",
+        type=int,
+        default=50,
+        help="Maximum backend queue wait for a partial Task 2 batch.",
+    )
 
     # specific contexts or questions
     parser.add_argument("--context-id", default=None, help="Context ID for 'repeated' mode")
@@ -448,6 +486,8 @@ def main():
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error("--batch-size must be at least 1")
+    if args.batch_timeout_ms < 1:
+        parser.error("--batch-timeout-ms must be at least 1")
 
     # --- Generate requests ---
     gen = RequestGenerator(data_dir=args.data_dir, seed=args.seed)
@@ -501,6 +541,7 @@ def main():
             scheduler_strategy=args.scheduler,
             ip=args.ip,
             port=args.port,
+            batch_timeout_ms=args.batch_timeout_ms,
         )
     else:
         results = run_benchmark(requests, ip=args.ip, port=args.port)

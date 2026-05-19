@@ -10,7 +10,6 @@ frontend/
 ├── cli.py                 # Interactive CLI chat client (provided)
 ├── frontend.py            # Streamlit web UI (provided)
 ├── request_generator.py   # Generates benchmark requests from context files
-├── batch_scheduler.py     # Task 2 scheduler for batched requests
 ├── benchmark.py           # Runs requests, measures latency & throughput
 ├── data/                  # Context .txt files (course paper summaries)
 └── results/               # Benchmark output CSVs (auto-created)
@@ -126,13 +125,20 @@ python benchmark.py --mode random --num-requests 50 -o results/my_experiment.csv
 
 ## Running Benchmarks (Task 2)
 
-Task 2 batching is opt-in. If you do not pass `--batch-size` or `--scheduler`, the benchmark keeps the original Task 1 single-request behavior and still sends normal OpenAI-compatible `/v2/chat/completions` requests.
+Task 2 batching is opt-in. If you do not pass `--batch-size` or `--scheduler`, the benchmark keeps the Task 1 single-request behavior and sends normal OpenAI-compatible `/v2/chat/completions` requests.
 
-The Task 2 scheduler is implemented as a separate reusable block in `batch_scheduler.py`. The benchmark first generates the same flat request list as Task 1, splits it into batches, optionally reorders each batch, and then sends requests through the existing `ChatSession.chat()` path.
+The Task 2 scheduler runs on the backend in `lmcache_vllm/batching/scheduler.py`. The benchmark generates the same flat request list as Task 1, splits it into batches, sends each batch concurrently to `/v2/batch/chat/completions`, and lets the backend reorder requests before forwarding them to the regular vLLM completion handler. The standard `/v2/chat/completions` endpoint remains available for non-batched requests; `/v2/chat/completions/batched` is also available as a direct batched endpoint.
+
+Start the vLLM server before running benchmarks from the frontend folder:
+
+```bash
+cd ~/IK2221-GPU-Inferencing-Project/lmcache-vllm-extended/frontend
+source ../../venv/bin/activate
+```
 
 ### Baseline Batch Order
 
-Runs batched input without reordering. Use this as the Task 2 baseline.
+Runs batched input through the backend batch endpoint without reordering. Use this as the Task 2 baseline.
 
 ```bash
 python benchmark.py --mode random --num-requests 40 \
@@ -142,7 +148,7 @@ python benchmark.py --mode random --num-requests 40 \
 
 ### Grouped Scheduler
 
-Groups requests within each batch by `context_id`, so requests that share the same context are served sequentially where possible.
+Sends the same batched workload to the backend grouped scheduler. The client does not reorder requests; the backend groups requests that share the same context before forwarding them to vLLM.
 
 ```bash
 python benchmark.py --mode random --num-requests 40 \
@@ -175,7 +181,7 @@ python benchmark.py --mode random --seed 42 --num-requests 40 \
   -o results/task2_q1_grouped.csv
 ```
 
-Compare average `ttft_s`, average `total_latency_s`, and throughput. Also inspect `context_id`, `original_position`, and `scheduled_position` to confirm that the grouped run placed same-context requests next to each other within batches.
+Compare average `ttft_s`, average `total_latency_s`, and throughput. To confirm that backend scheduling is active, check the vLLM server logs for `v2 batched completion flush: size=... scheduler=grouped`.
 
 ### Q2 - What happens with a very large local cache, and how does batch size matter?
 
