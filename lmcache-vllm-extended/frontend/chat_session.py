@@ -7,7 +7,16 @@ import time
 
 
 class ChatSession:
-    def __init__(self, ip, port, context_separator = "###"):
+    def __init__(
+        self,
+        ip,
+        port,
+        context_separator="###",
+        use_batching=False,
+        batch_size=1,
+        scheduler="none",
+        batch_timeout_ms=50,
+    ):
         openai_api_key = "EMPTY"
         openai_api_base = f"http://{ip}:{port}/v2"
 
@@ -24,6 +33,13 @@ class ChatSession:
 
         self.final_context = ""
         self.context_separator = context_separator
+        self.extra_headers = {}
+        if use_batching:
+            self.extra_headers = {
+                "x-lmcache-batch-size": str(max(1, batch_size)),
+                "x-lmcache-scheduler": scheduler,
+                "x-lmcache-batch-timeout-ms": str(max(1, batch_timeout_ms)),
+            }
 
 
     def set_context(self, context_strings):
@@ -59,6 +75,7 @@ class ChatSession:
             temperature=0.5,
             stream=True,
             stop = "\n",
+            extra_headers=self.extra_headers or None,
         )
 
         output_buffer = StringIO()
